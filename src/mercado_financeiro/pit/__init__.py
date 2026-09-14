@@ -4,6 +4,7 @@ from .cvm import (
     audit_fre_capital_social,
     available_asof,
 )
+from .shares import normalize_dfp_shares_outstanding, shares_outstanding_asof
 from .survivorship import coverage_audit
 
 __all__ = [
@@ -12,4 +13,6 @@ __all__ = [
     "audit_fre_capital_social",
     "available_asof",
     "coverage_audit",
+    "normalize_dfp_shares_outstanding",
+    "shares_outstanding_asof",
 ]
