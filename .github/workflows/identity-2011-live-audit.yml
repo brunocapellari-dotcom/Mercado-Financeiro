@@ -1,0 +1,27 @@
+name: identity-2011-live-audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/mercado_financeiro/pit/universe.py"
+      - "scripts/audit_identity_2011_live.py"
+      - ".github/workflows/identity-2011-live-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project
+        run: pip install -e .
+      - name: Audit 2011 issuer identity coverage
+        run: python scripts/audit_identity_2011_live.py
