@@ -22,10 +22,3 @@ jobs:
           python-version: "3.12"
       - name: Audit FCA 2010-2026 schemas
         run: python scripts/audit_fca_schema.py
-      - name: Upload FCA schema report
-        uses: actions/upload-artifact@v4
-        with:
-          name: fca-schema-audit
-          path: artifacts/fca_schema_audit.json
-          if-no-files-found: error
-          retention-days: 14
