@@ -1,0 +1,30 @@
+{
+  "availability": {
+    "2025-12-31": {"dfp_companies": 10, "fre_companies": 177},
+    "2026-03-31": {"dfp_companies": 594, "fre_companies": 268},
+    "2026-06-30": {"dfp_companies": 662, "fre_companies": 686},
+    "2026-08-24": {"dfp_companies": 666, "fre_companies": 698}
+  },
+  "dfp": {
+    "companies": 666,
+    "dataset": "DFP_COMPOSICAO_CAPITAL",
+    "max_versions_per_company": 1,
+    "missing_available_from": 0,
+    "receipt_max": "2026-08-18 00:00:00",
+    "receipt_median": "2026-03-18 00:00:00",
+    "receipt_min": "2025-05-08 00:00:00",
+    "rows": 666,
+    "year": 2025
+  },
+  "fre": {
+    "companies": 698,
+    "dataset": "FRE_CAPITAL_SOCIAL",
+    "max_versions_per_company": 1,
+    "missing_available_from": 0,
+    "receipt_max": "2026-08-21 00:00:00",
+    "receipt_median": "2026-05-04 00:00:00",
+    "receipt_min": "2025-03-27 00:00:00",
+    "rows": 2402,
+    "year": 2025
+  }
+}
