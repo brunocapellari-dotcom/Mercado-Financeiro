@@ -34,6 +34,11 @@ def normalize_dfp_shares_outstanding(df: pd.DataFrame) -> pd.DataFrame:
     if out[["reference_date", "available_from"]].isna().any().any():
         raise ValueError("reference_date/available_from contains null or invalid values")
 
+    out["filing_version"] = pd.to_numeric(out["VERSAO"], errors="coerce")
+    if out["filing_version"].isna().any():
+        raise ValueError("VERSAO contains null/non-numeric values")
+    out["filing_version"] = out["filing_version"].astype("int64")
+
     numeric_map = {
         "ordinary_issued": "QT_ACAO_ORDIN_CAP_INTEGR",
         "preferred_issued": "QT_ACAO_PREF_CAP_INTEGR",
@@ -68,7 +73,6 @@ def normalize_dfp_shares_outstanding(df: pd.DataFrame) -> pd.DataFrame:
     out["preferred_outstanding"] = out["preferred_issued"] - out["preferred_treasury"]
     out["total_outstanding"] = out["ordinary_outstanding"] + out["preferred_outstanding"]
     out["issuer_id"] = out["CNPJ_CIA"]
-    out["filing_version"] = out["VERSAO"]
     out["source"] = "CVM_DFP_COMPOSICAO_CAPITAL"
     out["vintage_mode"] = "conservative_latest_snapshot"
 
@@ -94,7 +98,7 @@ def normalize_dfp_shares_outstanding(df: pd.DataFrame) -> pd.DataFrame:
 
 def shares_outstanding_asof(df: pd.DataFrame, asof: str | pd.Timestamp) -> pd.DataFrame:
     """Select the latest economically eligible share count per issuer at `asof`."""
-    required = {"issuer_id", "reference_date", "available_from"}
+    required = {"issuer_id", "reference_date", "available_from", "filing_version"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(f"missing columns: {sorted(missing)}")
