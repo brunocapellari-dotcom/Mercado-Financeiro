@@ -4,6 +4,7 @@ from .engine import (
     DeterministicExecutionEngine,
     ExecutionResult,
     IdempotencyConflict,
+    IdempotencyStore,
     InMemoryIdempotencyStore,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "DeterministicExecutionEngine",
     "ExecutionResult",
     "IdempotencyConflict",
+    "IdempotencyStore",
     "InMemoryIdempotencyStore",
 ]
