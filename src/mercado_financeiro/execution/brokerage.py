@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
+from typing import Protocol
 
 from mercado_financeiro.risk import OrderIntent
+
+
+class SettlementCalendar(Protocol):
+    """Calendar boundary used to resolve contractual settlement dates."""
+
+    verified: bool
+
+    def add_business_days(self, timestamp: datetime, business_days: int) -> datetime:
+        ...
 
 
 @dataclass(frozen=True)
@@ -77,10 +87,18 @@ class DeterministicBrokerageModel:
     This intentionally models a marketable order conservatively from bid/ask,
     explicit slippage/impact and explicit fees. It is not a claim that these
     parameters match any broker until that broker schedule has been audited.
+    Contractual settlement requires an externally supplied, verified calendar;
+    it is never approximated with simple calendar-day arithmetic.
     """
 
-    def __init__(self, schedule: BrokerageCostSchedule) -> None:
+    def __init__(
+        self,
+        schedule: BrokerageCostSchedule,
+        *,
+        settlement_calendar: SettlementCalendar | None = None,
+    ) -> None:
         self._schedule = schedule
+        self._settlement_calendar = settlement_calendar
 
     @property
     def schedule(self) -> BrokerageCostSchedule:
@@ -103,6 +121,10 @@ class DeterministicBrokerageModel:
             return self._rejected("insufficient_visible_liquidity")
         if market.adv_notional <= 0:
             return self._rejected("adv_unavailable")
+        if self._schedule.settlement_business_days > 0:
+            calendar = self._settlement_calendar
+            if calendar is None or not bool(getattr(calendar, "verified", False)):
+                return self._rejected("verified_settlement_calendar_unavailable")
 
         reference = market.ask if order.side == "buy" else market.bid
         reference_notional = reference * order.quantity
@@ -131,7 +153,13 @@ class DeterministicBrokerageModel:
             return self._rejected("insufficient_buying_power")
 
         cash_delta = -(gross + fee) if order.side == "buy" else gross - fee
-        settlement = market.timestamp + timedelta(days=self._schedule.settlement_business_days)
+        if self._schedule.settlement_business_days:
+            assert self._settlement_calendar is not None
+            settlement = self._settlement_calendar.add_business_days(
+                market.timestamp, self._schedule.settlement_business_days
+            )
+        else:
+            settlement = market.timestamp
         return SimulatedFill(
             filled=True,
             reason="filled",
