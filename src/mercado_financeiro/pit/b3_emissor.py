@@ -22,6 +22,18 @@ class B3EmissorAudit:
     ambiguous_issuer_codes: int
 
 
+@dataclass(frozen=True)
+class IdentityEnrichmentAudit:
+    rows: int
+    resolved_before: int
+    resolved_after: int
+    newly_resolved_rows: int
+    conflict_rows: int
+    mapped_row_ratio: float
+    mapped_volume_ratio: float
+    unique_issuers: int
+
+
 def _cnpj_check_digits(digits12: str) -> str:
     def digit(base: str, weights: list[int]) -> str:
         total = sum(int(ch) * weight for ch, weight in zip(base, weights, strict=True))
@@ -184,3 +196,105 @@ def resolve_b3_emissor_identity(
     out = out.sort_values(["ticker", "identity_evidence_available_from"], kind="stable")
     out = out.drop_duplicates("ticker", keep="last")
     return out.reset_index(drop=True)
+
+
+def enrich_historical_identity_with_b3_emissor(
+    universe: pd.DataFrame,
+    emissor: pd.DataFrame,
+) -> tuple[pd.DataFrame, IdentityEnrichmentAudit]:
+    """Fill unresolved historical issuer identities from deterministic B3 evidence.
+
+    Existing resolved FCA mappings are never silently overwritten. If B3 and FCA
+    disagree on a resolved issuer, the row fails closed as a source conflict. B3
+    EMISSOR evidence is allowed only for static historical identity reconstruction;
+    it does not change publication-time eligibility of fundamentals or share counts.
+    """
+    required = {
+        "ticker",
+        "issuer_id",
+        "identity_mapping_status",
+        "trade_date",
+        "financial_volume",
+        "security_id",
+    }
+    missing = required - set(universe.columns)
+    if missing:
+        raise ValueError(f"missing universe columns: {sorted(missing)}")
+
+    out = universe.copy()
+    out["trade_date"] = pd.to_datetime(out["trade_date"], errors="coerce")
+    out["financial_volume"] = pd.to_numeric(out["financial_volume"], errors="coerce")
+    if out[["trade_date", "financial_volume"]].isna().any().any():
+        raise ValueError("universe contains invalid trade_date/financial_volume")
+
+    resolved_before_mask = out["identity_mapping_status"].eq("resolved")
+    resolved_before = int(resolved_before_mask.sum())
+
+    evidence = resolve_b3_emissor_identity(out["ticker"].drop_duplicates(), emissor).rename(
+        columns={
+            "issuer_id": "b3_emissor_issuer_id",
+            "identity_mapping_status": "b3_emissor_mapping_status",
+            "identity_evidence_available_from": "b3_emissor_evidence_available_from",
+            "identity_evidence_source": "b3_emissor_evidence_source",
+        }
+    )
+    keep = [
+        "ticker",
+        "b3_emissor_issuer_id",
+        "b3_emissor_mapping_status",
+        "b3_emissor_evidence_available_from",
+    ]
+    if "b3_emissor_evidence_source" in evidence.columns:
+        keep.append("b3_emissor_evidence_source")
+    evidence = evidence[keep]
+    out = out.merge(evidence, on="ticker", how="left", validate="many_to_one")
+
+    b3_resolved = out["b3_emissor_mapping_status"].eq("resolved")
+    conflict = (
+        resolved_before_mask
+        & b3_resolved
+        & out["issuer_id"].notna()
+        & out["b3_emissor_issuer_id"].notna()
+        & out["issuer_id"].astype(str).ne(out["b3_emissor_issuer_id"].astype(str))
+    )
+    if conflict.any():
+        out.loc[conflict, "identity_mapping_status"] = "ambiguous_source_conflict"
+        out.loc[conflict, "issuer_id"] = pd.NA
+
+    unresolved = out["identity_mapping_status"].astype(str).str.startswith("unresolved")
+    fill = unresolved & b3_resolved
+    out.loc[fill, "issuer_id"] = out.loc[fill, "b3_emissor_issuer_id"]
+    out.loc[fill, "identity_mapping_status"] = "resolved"
+    out.loc[fill, "identity_evidence_available_from"] = out.loc[
+        fill, "b3_emissor_evidence_available_from"
+    ]
+    out.loc[fill, "identity_evidence_reference_date"] = pd.NaT
+    out.loc[fill, "identity_policy"] = "historical_identity"
+    out.loc[fill, "identity_resolution_method"] = "B3_EMISSOR_PREFIX4"
+    out.loc[fill, "identity_evidence_source"] = "B3_EMISSOR_CURRENT_SNAPSHOT"
+
+    evidence_date = pd.to_datetime(out.get("identity_evidence_available_from"), errors="coerce")
+    resolved_after_mask = out["identity_mapping_status"].eq("resolved")
+    out["identity_reconstruction_uses_later_evidence"] = (
+        resolved_after_mask & evidence_date.notna() & (evidence_date > out["trade_date"])
+    )
+
+    mapped_volume = out.loc[resolved_after_mask, "financial_volume"].sum()
+    total_volume = out["financial_volume"].sum()
+    audit = IdentityEnrichmentAudit(
+        rows=len(out),
+        resolved_before=resolved_before,
+        resolved_after=int(resolved_after_mask.sum()),
+        newly_resolved_rows=int(fill.sum()),
+        conflict_rows=int(conflict.sum()),
+        mapped_row_ratio=float(resolved_after_mask.mean()) if len(out) else 0.0,
+        mapped_volume_ratio=float(mapped_volume / total_volume) if total_volume > 0 else 0.0,
+        unique_issuers=out.loc[resolved_after_mask, "issuer_id"].nunique(),
+    )
+    drop_cols = [
+        "b3_emissor_issuer_id",
+        "b3_emissor_mapping_status",
+        "b3_emissor_evidence_available_from",
+        "b3_emissor_evidence_source",
+    ]
+    return out.drop(columns=[c for c in drop_cols if c in out.columns]).reset_index(drop=True), audit
