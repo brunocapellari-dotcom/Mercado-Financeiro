@@ -21,6 +21,7 @@ from .provider import (
     is_stale,
     sequence_gap,
 )
+from .quality import DataQualityContract, DataQualityResult, assert_data_quality, evaluate_data_quality
 from .registry import SOURCE_REGISTRY, SourceContract, SourceTier, get_source_contract
 
 __all__ = [
@@ -30,6 +31,8 @@ __all__ = [
     "BCBSeries",
     "BCBSeriesContract",
     "BCB_SERIES_CATALOG",
+    "DataQualityContract",
+    "DataQualityResult",
     "FeedHealth",
     "FeedStatus",
     "FundamentalsAudit",
@@ -47,6 +50,8 @@ __all__ = [
     "SourceTier",
     "VintageMode",
     "asof",
+    "assert_data_quality",
+    "evaluate_data_quality",
     "fundamentals_asof",
     "get_bcb_series_contract",
     "get_source_contract",
