@@ -5,7 +5,7 @@ import hashlib
 import io
 from pathlib import PurePosixPath
 import stat
-from typing import Iterable
+from typing import Iterable, Mapping
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zipfile
@@ -17,8 +17,19 @@ DEFAULT_ALLOWED_SOURCE_HOSTS = frozenset(
         "b3.com.br",
         "sistemaswebb3-listados.b3.com.br",
         "bvmf.bmfbovespa.com.br",
+        "api.bcb.gov.br",
+        "olinda.bcb.gov.br",
+        "dadosabertos.bcb.gov.br",
+        "api.anbima.com.br",
+        "api-sandbox.anbima.com.br",
+        "developers.anbima.com.br",
+        "nefin.com.br",
+        "www.nefin.com.br",
     }
 )
+
+_SENSITIVE_HEADER_NAMES = frozenset({"authorization", "proxy-authorization", "x-api-key"})
+_FORBIDDEN_CALLER_HEADERS = frozenset({"host", "content-length"})
 
 
 class SourceSecurityError(ValueError):
@@ -32,14 +43,35 @@ class DownloadPolicy:
     max_bytes: int = 250_000_000
     user_agent: str = "Mercado-Financeiro/0.1 (+research-ingestion)"
 
+    def __post_init__(self) -> None:
+        if self.timeout_seconds <= 0:
+            raise ValueError("timeout_seconds must be positive")
+        if self.max_bytes <= 0:
+            raise ValueError("max_bytes must be positive")
+        if not self.allowed_hosts:
+            raise ValueError("allowed_hosts must not be empty")
+
 
 class _ValidatingRedirectHandler(HTTPRedirectHandler):
-    def __init__(self, allowed_hosts: frozenset[str]):
+    def __init__(
+        self,
+        allowed_hosts: frozenset[str],
+        *,
+        original_host: str,
+        sensitive_request: bool,
+    ) -> None:
         super().__init__()
         self.allowed_hosts = allowed_hosts
+        self.original_host = original_host
+        self.sensitive_request = sensitive_request
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
         validate_source_url(newurl, self.allowed_hosts)
+        new_host = (urlsplit(newurl).hostname or "").lower().rstrip(".")
+        if self.sensitive_request and new_host != self.original_host:
+            raise SourceSecurityError(
+                "authenticated requests may not redirect credentials to another host"
+            )
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
@@ -65,11 +97,46 @@ def validate_source_url(
     return url
 
 
-def download_https(url: str, policy: DownloadPolicy | None = None) -> bytes:
+def _validated_headers(headers: Mapping[str, str] | None) -> dict[str, str]:
+    result: dict[str, str] = {}
+    for name, value in (headers or {}).items():
+        normalized = name.strip().lower()
+        if normalized in _FORBIDDEN_CALLER_HEADERS:
+            raise SourceSecurityError(f"caller may not override HTTP header: {name}")
+        if "\r" in name or "\n" in name or "\r" in value or "\n" in value:
+            raise SourceSecurityError("HTTP header injection attempt rejected")
+        result[name] = value
+    return result
+
+
+def download_https(
+    url: str,
+    policy: DownloadPolicy | None = None,
+    *,
+    headers: Mapping[str, str] | None = None,
+) -> bytes:
+    """Download one allowlisted HTTPS object with bounded resource use.
+
+    Optional authentication headers remain in memory only. When any sensitive
+    credential header is present, redirects are restricted to the original host
+    to prevent credential forwarding to another allowlisted service.
+    """
+
     policy = policy or DownloadPolicy()
     validate_source_url(url, policy.allowed_hosts)
-    opener = build_opener(_ValidatingRedirectHandler(policy.allowed_hosts))
-    request = Request(url, headers={"User-Agent": policy.user_agent})
+    parsed = urlsplit(url)
+    original_host = (parsed.hostname or "").lower().rstrip(".")
+    caller_headers = _validated_headers(headers)
+    sensitive_request = any(name.lower() in _SENSITIVE_HEADER_NAMES for name in caller_headers)
+    opener = build_opener(
+        _ValidatingRedirectHandler(
+            policy.allowed_hosts,
+            original_host=original_host,
+            sensitive_request=sensitive_request,
+        )
+    )
+    request_headers = {"User-Agent": policy.user_agent, **caller_headers}
+    request = Request(url, headers=request_headers)
     with opener.open(request, timeout=policy.timeout_seconds) as response:
         final_url = response.geturl()
         validate_source_url(final_url, policy.allowed_hosts)
