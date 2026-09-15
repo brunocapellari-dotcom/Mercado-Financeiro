@@ -1,0 +1,26 @@
+name: b3-emissor-identity-audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/audit_b3_emissor_identity.py"
+      - ".github/workflows/b3-emissor-identity-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install project
+        run: pip install -e .
+      - name: Audit official B3 EMISSOR identity file
+        run: python scripts/audit_b3_emissor_identity.py
