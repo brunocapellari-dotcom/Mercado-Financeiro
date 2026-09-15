@@ -5,6 +5,8 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import tempfile
+import time
+import urllib.error
 import urllib.request
 
 import pandas as pd
@@ -26,10 +28,31 @@ META_URL = "https://sistemaswebb3-listados.b3.com.br/isinProxy/IsinCall/GetTextD
 FILE_URL = "https://sistemaswebb3-listados.b3.com.br/isinProxy/IsinCall/GetFileDownload/{token}"
 
 
-def _get(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": "Mercado-Financeiro-PIT-Audit/1.0"})
-    with urllib.request.urlopen(request, timeout=120) as response:  # nosec B310 fixed official hosts
-        return response.read()
+def _get(url: str, attempts: int = 5) -> bytes:
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
+        request = urllib.request.Request(
+            url,
+            headers={"User-Agent": "Mercado-Financeiro-PIT-Audit/1.0"},
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=120) as response:  # nosec B310 fixed official hosts
+                payload = response.read()
+            if not payload:
+                raise OSError("official source returned an empty response")
+            return payload
+        except (urllib.error.URLError, TimeoutError, OSError) as exc:
+            last_error = exc
+            if attempt == attempts:
+                break
+            delay = min(2 ** attempt, 20)
+            print(
+                "SOURCE_RETRY "
+                f"attempt={attempt}/{attempts} delay_seconds={delay} url={url!r} "
+                f"error={type(exc).__name__}:{exc}"
+            )
+            time.sleep(delay)
+    raise RuntimeError(f"official source unavailable after {attempts} attempts: {url}") from last_error
 
 
 def _download(url: str, target: Path) -> None:
