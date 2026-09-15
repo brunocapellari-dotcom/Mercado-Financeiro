@@ -103,11 +103,8 @@ def _name_matches(short_name: object, full_name: object) -> bool:
     matches = [_token_matches(token, full_tokens, acronyms) for token in short_tokens]
     if not all(matches):
         return False
-    # One-token aliases are accepted only when they are reasonably distinctive;
-    # uniqueness across issuer ids is enforced by the resolver below.
     if len(short_tokens) == 1:
         return len(short_tokens[0]) >= 4
-    # Require enough literal information to avoid promoting tiny abbreviation pairs.
     informative = sum(len(token) for token in short_tokens if len(token) >= 3)
     return informative >= 6
 
@@ -116,11 +113,13 @@ def audit_fca_issuer_name_registry(
     path: str | Path,
     year: int,
 ) -> tuple[pd.DataFrame, FCAIssuerNameAudit]:
-    """Build issuer-name aliases from the represented FCA filing version.
+    """Build issuer-name aliases only from FCA rows with exact filing evidence.
 
-    The bridge is identity metadata only. Every alias is tied to the exact FCA
-    filing ledger row so evidence availability remains auditable. It may be used
-    ex-post only by the explicit ``historical_identity`` reconstruction path.
+    The annual general section can occasionally contain a row whose represented
+    document/version is absent from the annual filing ledger. Such a row has no
+    defensible information-availability timestamp and is excluded individually.
+    Other exact ledger-linked rows from the same vintage remain usable. Missing
+    evidence is counted in the audit; no availability date is fabricated.
     """
     inner = _inner_zip_bytes(path)
     ledger = _read_csv(inner, f"fca_cia_aberta_{year}.csv")
@@ -159,8 +158,7 @@ def audit_fca_issuer_name_registry(
         validate="many_to_one",
     ).rename(columns={"DT_RECEB": "available_from"})
     missing_available = int(joined["available_from"].isna().sum())
-    if missing_available:
-        raise ValueError(f"FCA {year}: {missing_available} general rows lack available_from")
+    joined = joined.loc[joined["available_from"].notna()].copy()
 
     rows: list[dict[str, object]] = []
     name_columns: list[tuple[str, str]] = [("Nome_Empresarial", "current_name")]
@@ -173,7 +171,7 @@ def audit_fca_issuer_name_registry(
         payload = row._asdict()
         issuer_id = normalize_cnpj(payload.get("CNPJ_Companhia"))
         if issuer_id is None:
-            raise ValueError(f"FCA {year}: invalid issuer CNPJ in general section")
+            raise ValueError(f"FCA {year}: invalid issuer CNPJ in ledger-linked general section")
         reference_date = pd.to_datetime(payload.get("Data_Referencia"), errors="coerce")
         available_from = pd.to_datetime(payload.get("available_from"), errors="coerce", utc=True)
         if pd.isna(reference_date) or pd.isna(available_from):
