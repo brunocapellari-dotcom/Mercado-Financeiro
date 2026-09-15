@@ -14,11 +14,17 @@ class BrokerOrderAck:
     status: str
 
 
+class BrokerSubmissionOutcomeUnknown(RuntimeError):
+    """Raised when the request may have reached the venue but no final state is known."""
+
+
 class BrokerAdapter(Protocol):
     """Execution-only broker boundary.
 
     Implementations own broker authentication. Credentials must never be
-    exposed through this protocol or passed into LLM/research code.
+    exposed through this protocol or passed into LLM/research code. An adapter
+    must raise ``BrokerSubmissionOutcomeUnknown`` whenever a state-changing
+    request may have reached the broker but its final outcome is unknown.
     """
 
     def submit_order(self, order: OrderIntent, *, client_order_id: str) -> BrokerOrderAck:
@@ -27,12 +33,13 @@ class BrokerAdapter(Protocol):
 
 @dataclass(frozen=True)
 class ExecutionResult:
-    accepted: bool
+    accepted: bool | None
     status: str
     client_order_id: str
     broker_order_id: str | None
     risk_reasons: tuple[str, ...]
     duplicate: bool = False
+    requires_reconciliation: bool = False
 
 
 class IdempotencyConflict(RuntimeError):
@@ -81,7 +88,12 @@ class InMemoryIdempotencyStore:
 
 
 class DeterministicExecutionEngine:
-    """Execution path that cannot bypass deterministic pre-trade risk."""
+    """Execution path that cannot bypass deterministic pre-trade risk.
+
+    Unknown transport outcomes are never blindly retried. The idempotency key is
+    sealed as ``submission_ambiguous`` and must be resolved by broker query or
+    reconciliation before the system can make a new state-changing decision.
+    """
 
     def __init__(
         self,
@@ -118,6 +130,7 @@ class DeterministicExecutionEngine:
                     broker_order_id=existing_result.broker_order_id,
                     risk_reasons=existing_result.risk_reasons,
                     duplicate=True,
+                    requires_reconciliation=existing_result.requires_reconciliation,
                 )
 
             decision = self._risk_engine.evaluate(order, context)
@@ -134,7 +147,21 @@ class DeterministicExecutionEngine:
                     raise IdempotencyConflict("idempotency store changed during rejection")
                 return result
 
-            ack = self._broker.submit_order(order, client_order_id=client_order_id)
+            try:
+                ack = self._broker.submit_order(order, client_order_id=client_order_id)
+            except (BrokerSubmissionOutcomeUnknown, TimeoutError, ConnectionError, OSError):
+                result = ExecutionResult(
+                    accepted=None,
+                    status="submission_ambiguous",
+                    client_order_id=client_order_id,
+                    broker_order_id=None,
+                    risk_reasons=(),
+                    requires_reconciliation=True,
+                )
+                if not self._idempotency.put_if_absent(order.idempotency_key, fingerprint, result):
+                    raise IdempotencyConflict("idempotency store changed after ambiguous submission")
+                return result
+
             result = ExecutionResult(
                 accepted=True,
                 status=ack.status,
