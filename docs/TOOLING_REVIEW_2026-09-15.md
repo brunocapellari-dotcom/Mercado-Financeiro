@@ -64,6 +64,33 @@ This project is active and is worth benchmarking later for high-throughput BigQu
 connectivity. It is not adopted now because there is no measured connector bottleneck
 and the official Google client remains the baseline implementation target.
 
+## Additional current GitHub review
+
+### mlflow/mlflow — FUTURE MODEL-REGISTRY BENCHMARK
+
+The upstream project is active and is a strong candidate for model registry,
+experiment tracking and artifact lifecycle once the project has real promoted ML models
+and a deployed service boundary. It is not introduced now because the repository
+already has deterministic experiment manifests and promotion gates; installing MLflow
+before there is a production registry requirement would create a second experiment
+truth rather than replace one.
+
+### unionai-oss/pandera — DATA-CONTRACT BENCHMARK
+
+Pandera is active and useful for dataframe schema validation. Mercado Financeiro
+already has explicit source contracts, PIT validators, schema-drift rejection and
+financial-domain invariants. It is therefore retained as a benchmark rather than added
+as a parallel validation framework. Revisit only if the number of heterogeneous table
+contracts grows enough that declarative schemas materially reduce maintenance.
+
+### open-telemetry/opentelemetry-python — FUTURE OBSERVABILITY STANDARD
+
+OpenTelemetry is the preferred future tracing/metrics interoperability reference when
+collectors, model services, risk services and execution services become deployed
+processes. It is not a core dependency for the current repository-only stage. When
+introduced, telemetry must never contain broker credentials, sensitive raw payloads or
+unbounded market-data bodies.
+
 ## Retained as references, not added as overlapping core dependencies
 
 ### exchange_calendars — REFERENCE / NO CORE DEPENDENCY
@@ -121,13 +148,13 @@ API changes. It is unsuitable as a production dependency.
 
 ## Tools deliberately not introduced
 
-Airflow, dbt, Polars, Streamlit and a separate feature-store service were not added.
-The present workload does not justify overlapping operational layers. GitHub Actions
-already provides deterministic validation orchestration; DuckDB plus immutable PIT
-snapshots provides the local analytical store; the existing feature contracts provide
-feature provenance. Google Cloud preparation does not change this rule: BigQuery is a
-future persistent/scale target, not permission to add an orchestration stack before a
-measured requirement exists.
+Airflow, dbt, Polars, Streamlit, MLflow, Pandera and a separate feature-store service
+were not added. The present workload does not justify overlapping operational layers.
+GitHub Actions already provides deterministic validation orchestration; DuckDB plus
+immutable PIT snapshots provides the local analytical store; the existing feature and
+experiment contracts provide provenance. Google Cloud preparation does not change this
+rule: BigQuery is a future persistent/scale target, not permission to add an
+orchestration stack before a measured requirement exists.
 
 ## Architecture changes resulting from the review
 
@@ -147,12 +174,15 @@ measured requirement exists.
    replay.
 8. Replit, Claude Code and other development surfaces are subordinate to GitHub and
    cannot become independent code/data/deployment authorities.
+9. Model registry, declarative dataframe validation and distributed observability are
+   reserved for measured operational needs rather than added pre-emptively.
 
 ## Next tool reviews
 
 Re-evaluate tools only at concrete boundaries: portfolio optimization (skfolio),
-high-throughput BigQuery connectivity (official client versus ADBC), large parallel
-feature computation if DuckDB becomes a bottleneck, broker FIX/API execution, and an
-external independent backtest parity engine. Each candidate must pass license,
-Python-version, security, determinism, PIT and whole-project regression gates before it
-can replace an existing component.
+high-throughput BigQuery connectivity (official client versus ADBC), production model
+registry (MLflow or a lighter alternative), distributed observability (OpenTelemetry),
+large parallel feature computation if DuckDB becomes a bottleneck, broker FIX/API
+execution, and an external independent backtest parity engine. Each candidate must pass
+license, Python-version, security, determinism, PIT and whole-project regression gates
+before it can replace an existing component.
