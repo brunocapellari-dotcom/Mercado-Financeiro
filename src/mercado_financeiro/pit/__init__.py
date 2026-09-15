@@ -1,3 +1,12 @@
+from .b3_emissor import (
+    B3EmissorAudit,
+    IdentityEnrichmentAudit,
+    enrich_historical_identity_with_b3_emissor,
+    normalize_cnpj,
+    parse_b3_emissor_zip,
+    resolve_b3_emissor_identity,
+    ticker_issuer_code,
+)
 from .cvm import (
     SnapshotAudit,
     audit_dfp_composition_capital,
@@ -27,7 +36,9 @@ from .universe import (
 )
 
 __all__ = [
+    "B3EmissorAudit",
     "FCATickerBridgeAudit",
+    "IdentityEnrichmentAudit",
     "IdentityPolicy",
     "MarketCapResult",
     "SnapshotAudit",
@@ -42,10 +53,15 @@ __all__ = [
     "combine_fca_ticker_issuer_history",
     "compute_market_cap_asof",
     "coverage_audit",
+    "enrich_historical_identity_with_b3_emissor",
+    "normalize_cnpj",
     "normalize_dfp_shares_outstanding",
     "normalize_fca_share_ticker",
+    "parse_b3_emissor_zip",
+    "resolve_b3_emissor_identity",
     "resolve_fca_identity_asof",
     "resolve_security_issuer_asof",
     "shares_outstanding_asof",
+    "ticker_issuer_code",
     "validate_security_master_scd2",
 ]
