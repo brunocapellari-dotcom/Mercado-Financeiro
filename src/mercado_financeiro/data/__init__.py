@@ -1,5 +1,7 @@
 from .anbima import AnbimaAccessToken, AnbimaFeedSource
 from .bcb import BCBSgsSource
+from .bcb_catalog import BCBSeries, BCBSeriesContract, BCB_SERIES_CATALOG, get_bcb_series_contract
+from .fundamentals import FundamentalsAudit, fundamentals_asof, validate_fundamental_observations
 from .historical import (
     HistoricalDataset,
     HistoricalDataSource,
@@ -8,7 +10,9 @@ from .historical import (
     require_pit_columns,
 )
 from .live import LiveFeedMonitor
+from .macro import MacroAudit, macro_asof, validate_macro_observations
 from .nefin import NEFINRiskFactorsSource
+from .news import NewsEvent, NewsProvider, news_body_digest
 from .provider import (
     FeedHealth,
     FeedStatus,
@@ -17,22 +21,40 @@ from .provider import (
     is_stale,
     sequence_gap,
 )
+from .registry import SOURCE_REGISTRY, SourceContract, SourceTier, get_source_contract
 
 __all__ = [
     "AnbimaAccessToken",
     "AnbimaFeedSource",
     "BCBSgsSource",
+    "BCBSeries",
+    "BCBSeriesContract",
+    "BCB_SERIES_CATALOG",
     "FeedHealth",
     "FeedStatus",
+    "FundamentalsAudit",
     "HistoricalDataSource",
     "HistoricalDataset",
     "LiveFeedMonitor",
+    "MacroAudit",
     "MarketDataEvent",
     "MarketDataProvider",
     "NEFINRiskFactorsSource",
+    "NewsEvent",
+    "NewsProvider",
+    "SOURCE_REGISTRY",
+    "SourceContract",
+    "SourceTier",
     "VintageMode",
     "asof",
+    "fundamentals_asof",
+    "get_bcb_series_contract",
+    "get_source_contract",
     "is_stale",
+    "macro_asof",
+    "news_body_digest",
     "require_pit_columns",
     "sequence_gap",
+    "validate_fundamental_observations",
+    "validate_macro_observations",
 ]
