@@ -18,6 +18,17 @@ from .b3_registry_history import (
     combine_b3_isin_registries,
     enrich_historical_identity_with_registry_history,
 )
+from .corporate_action_lifecycle import (
+    CorporateActionLifecycleAudit,
+    cash_payments_known_asof,
+    normalize_corporate_action_lifecycle,
+)
+from .corporate_actions import (
+    CorporateActionType,
+    TotalReturnAudit,
+    compute_total_returns,
+    normalize_corporate_actions,
+)
 from .cvm import (
     SnapshotAudit,
     audit_dfp_composition_capital,
@@ -64,6 +75,8 @@ from .universe import (
 __all__ = [
     "B3EmissorAudit",
     "B3IsinRegistryAudit",
+    "CorporateActionLifecycleAudit",
+    "CorporateActionType",
     "ExactIsinEnrichmentAudit",
     "FCAIssuerNameAudit",
     "FCANameEnrichmentAudit",
@@ -74,6 +87,7 @@ __all__ = [
     "IdentityPolicy",
     "MarketCapResult",
     "SnapshotAudit",
+    "TotalReturnAudit",
     "TradableUniverseAudit",
     "assert_identity_gate",
     "audit_dfp_composition_capital",
@@ -83,11 +97,13 @@ __all__ = [
     "available_asof",
     "build_security_master_scd2",
     "build_tradable_universe_pit",
+    "cash_payments_known_asof",
     "classify_share_class",
     "combine_b3_isin_registries",
     "combine_fca_issuer_name_history",
     "combine_fca_ticker_issuer_history",
     "compute_market_cap_asof",
+    "compute_total_returns",
     "coverage_audit",
     "enrich_historical_identity_with_b3_emissor",
     "enrich_historical_identity_with_exact_isin",
@@ -97,6 +113,8 @@ __all__ = [
     "isin_checksum_valid",
     "normalize_cnpj",
     "normalize_company_name",
+    "normalize_corporate_action_lifecycle",
+    "normalize_corporate_actions",
     "normalize_dfp_shares_outstanding",
     "normalize_fca_share_ticker",
     "parse_b3_emissor_zip",
