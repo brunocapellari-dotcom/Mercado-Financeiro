@@ -1,12 +1,6 @@
 name: identity-2011-emissor-audit
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "src/mercado_financeiro/pit/b3_emissor.py"
-      - "scripts/audit_identity_2011_with_emissor.py"
-      - ".github/workflows/identity-2011-emissor-audit.yml"
   workflow_dispatch:
 
 permissions:

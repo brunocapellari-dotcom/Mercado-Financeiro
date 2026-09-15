@@ -1,12 +1,6 @@
 name: bvbg028-history-audit
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "scripts/audit_bvbg028_history.py"
-      - ".github/workflows/bvbg028-history-audit.yml"
-      - "src/mercado_financeiro/security/**"
   workflow_dispatch:
 
 permissions:

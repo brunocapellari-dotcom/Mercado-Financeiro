@@ -1,12 +1,6 @@
 name: cotahist-live-audit
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "src/mercado_financeiro/b3/cotahist.py"
-      - "scripts/audit_cotahist_live.py"
-      - ".github/workflows/cotahist-live-audit.yml"
   workflow_dispatch:
 
 permissions:

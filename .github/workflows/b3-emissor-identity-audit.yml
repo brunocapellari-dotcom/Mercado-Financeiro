@@ -1,11 +1,6 @@
 name: b3-emissor-identity-audit
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "scripts/audit_b3_emissor_identity.py"
-      - ".github/workflows/b3-emissor-identity-audit.yml"
   workflow_dispatch:
 
 permissions:

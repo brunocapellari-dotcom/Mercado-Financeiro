@@ -1,11 +1,6 @@
 name: fca-schema-audit
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "scripts/audit_fca_schema.py"
-      - ".github/workflows/fca-schema-audit.yml"
   workflow_dispatch:
 
 permissions:

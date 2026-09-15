@@ -1,13 +1,6 @@
 name: identity-2011-exact-isin-audit
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - "src/mercado_financeiro/pit/b3_isin.py"
-      - "src/mercado_financeiro/pit/__init__.py"
-      - "scripts/audit_identity_2011_exact_isin.py"
-      - ".github/workflows/identity-2011-exact-isin-audit.yml"
   workflow_dispatch:
 
 permissions:
