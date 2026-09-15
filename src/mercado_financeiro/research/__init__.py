@@ -1,3 +1,12 @@
+from .feature_contract import (
+    FeatureField,
+    FeatureSchema,
+    FeatureSnapshotManifest,
+    assert_feature_cutoff,
+    assert_training_serving_parity,
+    build_feature_snapshot_manifest,
+    validate_feature_frame,
+)
 from .features import FeatureMartAudit, build_price_features_pit, point_in_time_asof_join
 from .tournament import (
     PerformanceMetrics,
@@ -16,13 +25,19 @@ from .tournament import (
 )
 
 __all__ = [
+    "FeatureField",
     "FeatureMartAudit",
+    "FeatureSchema",
+    "FeatureSnapshotManifest",
     "PerformanceMetrics",
     "TournamentPrerequisites",
     "TournamentReadiness",
     "WalkForwardSplit",
     "apply_transaction_costs",
+    "assert_feature_cutoff",
     "assert_tournament_ready",
+    "assert_training_serving_parity",
+    "build_feature_snapshot_manifest",
     "build_price_features_pit",
     "deflated_sharpe_ratio",
     "evaluate_tournament_readiness",
@@ -30,6 +45,7 @@ __all__ = [
     "point_in_time_asof_join",
     "probability_of_backtest_overfitting",
     "probabilistic_sharpe_ratio",
+    "validate_feature_frame",
     "walk_forward_splits",
     "whites_reality_check",
 ]
