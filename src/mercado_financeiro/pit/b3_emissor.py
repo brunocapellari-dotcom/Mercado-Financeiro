@@ -77,11 +77,11 @@ def parse_b3_emissor_zip(
 
     EMISSOR is not used as publication-time economic data. Its current snapshot may
     reconstruct historical static identity only, and its evidence timestamp is kept
-    so every ex-post mapping remains auditable.
+    so every ex-post mapping remains auditable. Timestamps are normalized to UTC.
     """
     if not payload:
         raise ValueError("empty B3 EMISSOR ZIP payload")
-    available = pd.Timestamp(evidence_available_from)
+    available = pd.to_datetime(evidence_available_from, errors="coerce", utc=True)
     if pd.isna(available):
         raise ValueError("invalid evidence_available_from")
 
@@ -173,6 +173,11 @@ def resolve_b3_emissor_identity(
         raise ValueError(f"missing B3 EMISSOR columns: {sorted(missing)}")
 
     evidence = emissor.copy()
+    evidence["identity_evidence_available_from"] = pd.to_datetime(
+        evidence["identity_evidence_available_from"], errors="coerce", utc=True
+    )
+    if evidence["identity_evidence_available_from"].isna().any():
+        raise ValueError("B3 EMISSOR evidence contains invalid availability timestamps")
     counts = evidence.groupby("issuer_code")["issuer_id"].nunique()
     ambiguous = set(counts[counts > 1].index.astype(str))
     evidence = evidence.sort_values(
@@ -273,10 +278,13 @@ def enrich_historical_identity_with_b3_emissor(
     out.loc[fill, "identity_resolution_method"] = "B3_EMISSOR_PREFIX4"
     out.loc[fill, "identity_evidence_source"] = "B3_EMISSOR_CURRENT_SNAPSHOT"
 
-    evidence_date = pd.to_datetime(out.get("identity_evidence_available_from"), errors="coerce")
+    evidence_date = pd.to_datetime(
+        out.get("identity_evidence_available_from"), errors="coerce", utc=True
+    )
+    trade_date_utc = pd.to_datetime(out["trade_date"], errors="coerce", utc=True)
     resolved_after_mask = out["identity_mapping_status"].eq("resolved")
     out["identity_reconstruction_uses_later_evidence"] = (
-        resolved_after_mask & evidence_date.notna() & (evidence_date > out["trade_date"])
+        resolved_after_mask & evidence_date.notna() & (evidence_date > trade_date_utc)
     )
 
     mapped_volume = out.loc[resolved_after_mask, "financial_volume"].sum()
