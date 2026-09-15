@@ -27,6 +27,18 @@ def test_bcb_defaults_to_conservative_retrieval(monkeypatch):
     assert len(asof(dataset.frame, "2026-09-15T12:00:00Z")) == 2
 
 
+def test_bcb_future_effective_value_can_be_known_before_reference_date(monkeypatch):
+    payload = b'[{"data":"16/09/2026","valor":"14.75"}]'
+    monkeypatch.setattr("mercado_financeiro.data.bcb.download_https", lambda url, policy: payload)
+    retrieved = datetime(2026, 9, 15, 15, 0, tzinfo=timezone.utc)
+    dataset = BCBSgsSource().fetch(432, retrieved_at=retrieved)
+    row = dataset.frame.iloc[0]
+    assert row["reference_date"] == pd.Timestamp("2026-09-16", tz="UTC")
+    assert row["available_from"] == pd.Timestamp(retrieved)
+    # PIT means "what was known", not "effective date <= cutoff".
+    assert len(asof(dataset.frame, retrieved)) == 1
+
+
 def test_bcb_publication_lag_must_be_explicit(monkeypatch):
     payload = b'[{"data":"01/09/2026","valor":"1.0"}]'
     monkeypatch.setattr("mercado_financeiro.data.bcb.download_https", lambda url, policy: payload)
