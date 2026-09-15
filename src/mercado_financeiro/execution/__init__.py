@@ -5,6 +5,7 @@ from .brokerage import (
     SettlementCalendar,
     SimulatedFill,
 )
+from .calendar import B3SessionCalendarAudit, ObservedB3SettlementCalendar
 from .engine import (
     BrokerAdapter,
     BrokerOrderAck,
@@ -17,6 +18,7 @@ from .engine import (
 )
 
 __all__ = [
+    "B3SessionCalendarAudit",
     "BrokerAdapter",
     "BrokerOrderAck",
     "BrokerSubmissionOutcomeUnknown",
@@ -28,6 +30,7 @@ __all__ = [
     "IdempotencyStore",
     "InMemoryIdempotencyStore",
     "MarketExecutionState",
+    "ObservedB3SettlementCalendar",
     "SettlementCalendar",
     "SimulatedFill",
 ]
