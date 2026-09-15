@@ -26,6 +26,12 @@ from .fca import (
     combine_fca_ticker_issuer_history,
     normalize_fca_share_ticker,
 )
+from .identity_gate import (
+    IdentityGatePolicy,
+    IdentityGateResult,
+    assert_identity_gate,
+    evaluate_identity_gate,
+)
 from .market_cap import (
     MarketCapResult,
     classify_share_class,
@@ -48,10 +54,13 @@ __all__ = [
     "ExactIsinEnrichmentAudit",
     "FCATickerBridgeAudit",
     "IdentityEnrichmentAudit",
+    "IdentityGatePolicy",
+    "IdentityGateResult",
     "IdentityPolicy",
     "MarketCapResult",
     "SnapshotAudit",
     "TradableUniverseAudit",
+    "assert_identity_gate",
     "audit_dfp_composition_capital",
     "audit_fca_ticker_issuer_bridge",
     "audit_fre_capital_social",
@@ -64,6 +73,7 @@ __all__ = [
     "coverage_audit",
     "enrich_historical_identity_with_b3_emissor",
     "enrich_historical_identity_with_exact_isin",
+    "evaluate_identity_gate",
     "isin_checksum_valid",
     "normalize_cnpj",
     "normalize_dfp_shares_outstanding",
