@@ -8,6 +8,7 @@ from .brokerage import (
 from .engine import (
     BrokerAdapter,
     BrokerOrderAck,
+    BrokerSubmissionOutcomeUnknown,
     DeterministicExecutionEngine,
     ExecutionResult,
     IdempotencyConflict,
@@ -18,6 +19,7 @@ from .engine import (
 __all__ = [
     "BrokerAdapter",
     "BrokerOrderAck",
+    "BrokerSubmissionOutcomeUnknown",
     "BrokerageCostSchedule",
     "DeterministicBrokerageModel",
     "DeterministicExecutionEngine",
