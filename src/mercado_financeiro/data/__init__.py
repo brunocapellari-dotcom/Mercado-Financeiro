@@ -1,3 +1,4 @@
+from .live import LiveFeedMonitor
 from .provider import (
     FeedHealth,
     FeedStatus,
@@ -10,6 +11,7 @@ from .provider import (
 __all__ = [
     "FeedHealth",
     "FeedStatus",
+    "LiveFeedMonitor",
     "MarketDataEvent",
     "MarketDataProvider",
     "is_stale",
