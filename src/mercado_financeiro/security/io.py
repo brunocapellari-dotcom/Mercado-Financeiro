@@ -1,0 +1,155 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+import hashlib
+import io
+from pathlib import PurePosixPath
+import stat
+from typing import Iterable
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+import zipfile
+
+DEFAULT_ALLOWED_SOURCE_HOSTS = frozenset(
+    {
+        "dados.cvm.gov.br",
+        "www.b3.com.br",
+        "b3.com.br",
+        "sistemaswebb3-listados.b3.com.br",
+        "bvmf.bmfbovespa.com.br",
+    }
+)
+
+
+class SourceSecurityError(ValueError):
+    """Raised when an external source violates an ingestion security policy."""
+
+
+@dataclass(frozen=True)
+class DownloadPolicy:
+    allowed_hosts: frozenset[str] = DEFAULT_ALLOWED_SOURCE_HOSTS
+    timeout_seconds: float = 30.0
+    max_bytes: int = 250_000_000
+    user_agent: str = "Mercado-Financeiro/0.1 (+research-ingestion)"
+
+
+class _ValidatingRedirectHandler(HTTPRedirectHandler):
+    def __init__(self, allowed_hosts: frozenset[str]):
+        super().__init__()
+        self.allowed_hosts = allowed_hosts
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):  # type: ignore[override]
+        validate_source_url(newurl, self.allowed_hosts)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def sha256_bytes(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def validate_source_url(
+    url: str,
+    allowed_hosts: Iterable[str] | None = None,
+) -> str:
+    parsed = urlsplit(url)
+    if parsed.scheme.lower() != "https":
+        raise SourceSecurityError("external source must use HTTPS")
+    if parsed.username is not None or parsed.password is not None:
+        raise SourceSecurityError("credentials embedded in source URLs are forbidden")
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if not host:
+        raise SourceSecurityError("source URL has no hostname")
+    allowed = frozenset(h.lower().rstrip(".") for h in (allowed_hosts or DEFAULT_ALLOWED_SOURCE_HOSTS))
+    if host not in allowed:
+        raise SourceSecurityError(f"source host is not allowlisted: {host}")
+    return url
+
+
+def download_https(url: str, policy: DownloadPolicy | None = None) -> bytes:
+    policy = policy or DownloadPolicy()
+    validate_source_url(url, policy.allowed_hosts)
+    opener = build_opener(_ValidatingRedirectHandler(policy.allowed_hosts))
+    request = Request(url, headers={"User-Agent": policy.user_agent})
+    with opener.open(request, timeout=policy.timeout_seconds) as response:
+        final_url = response.geturl()
+        validate_source_url(final_url, policy.allowed_hosts)
+        content_length = response.headers.get("Content-Length")
+        if content_length:
+            try:
+                declared = int(content_length)
+            except ValueError as exc:
+                raise SourceSecurityError("invalid Content-Length from source") from exc
+            if declared < 0 or declared > policy.max_bytes:
+                raise SourceSecurityError(
+                    f"source response exceeds max_bytes: {declared} > {policy.max_bytes}"
+                )
+        data = response.read(policy.max_bytes + 1)
+    if len(data) > policy.max_bytes:
+        raise SourceSecurityError(
+            f"source response exceeds max_bytes: > {policy.max_bytes}"
+        )
+    return data
+
+
+def _member_is_symlink(info: zipfile.ZipInfo) -> bool:
+    mode = (info.external_attr >> 16) & 0xFFFF
+    return bool(mode) and stat.S_ISLNK(mode)
+
+
+def validate_zip_bytes(
+    payload: bytes,
+    *,
+    max_members: int = 5_000,
+    max_total_uncompressed: int = 2_000_000_000,
+    max_member_uncompressed: int = 1_000_000_000,
+    max_compression_ratio: float = 250.0,
+) -> list[zipfile.ZipInfo]:
+    """Validate a ZIP without extracting it.
+
+    The function rejects path traversal, absolute paths, symlinks, suspiciously large
+    archives and extreme compression ratios. Call it again for every nested ZIP.
+    """
+    if not payload:
+        raise SourceSecurityError("empty ZIP payload")
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(payload))
+    except zipfile.BadZipFile as exc:
+        raise SourceSecurityError("invalid ZIP payload") from exc
+
+    with archive:
+        infos = archive.infolist()
+        if len(infos) > max_members:
+            raise SourceSecurityError(
+                f"ZIP member count exceeds limit: {len(infos)} > {max_members}"
+            )
+        total = 0
+        for info in infos:
+            name = info.filename
+            if "\x00" in name:
+                raise SourceSecurityError("ZIP member contains NUL byte")
+            normalized = name.replace("\\", "/")
+            path = PurePosixPath(normalized)
+            if path.is_absolute() or any(part == ".." for part in path.parts):
+                raise SourceSecurityError(f"unsafe ZIP member path: {name!r}")
+            if _member_is_symlink(info):
+                raise SourceSecurityError(f"ZIP symlink member is forbidden: {name!r}")
+            if info.file_size < 0 or info.compress_size < 0:
+                raise SourceSecurityError(f"invalid ZIP member sizes: {name!r}")
+            if info.file_size > max_member_uncompressed:
+                raise SourceSecurityError(
+                    f"ZIP member exceeds uncompressed limit: {name!r}"
+                )
+            total += info.file_size
+            if total > max_total_uncompressed:
+                raise SourceSecurityError("ZIP total uncompressed size exceeds limit")
+            if info.file_size > 0:
+                if info.compress_size == 0:
+                    raise SourceSecurityError(
+                        f"non-empty ZIP member has zero compressed size: {name!r}"
+                    )
+                ratio = info.file_size / info.compress_size
+                if ratio > max_compression_ratio:
+                    raise SourceSecurityError(
+                        f"ZIP compression ratio exceeds limit for {name!r}: {ratio:.1f}"
+                    )
+        return infos
