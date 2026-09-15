@@ -86,8 +86,13 @@ def _token_matches(short: str, full_tokens: tuple[str, ...], acronyms: set[str])
         return False
     if short in full_tokens:
         return True
-    if len(short) <= 2:
-        return short in acronyms
+    # B3 historical short names often encode a distinctive issuer acronym as a
+    # 2-4 character token (for example ALL -> America Latina Logistica or QGEP).
+    # Acronyms are accepted only when they are an exact initialism of contiguous
+    # legal-name tokens; the resolver still requires the resulting issuer to be
+    # unique, so this does not introduce edit-distance/fuzzy identity guesses.
+    if 2 <= len(short) <= 5 and short in acronyms:
+        return True
     for full in full_tokens:
         if len(full) >= 3 and (full.startswith(short) or short.startswith(full)):
             return True
