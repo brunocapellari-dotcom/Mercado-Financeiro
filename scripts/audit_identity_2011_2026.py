@@ -20,9 +20,11 @@ from mercado_financeiro.pit import (
     enrich_historical_identity_with_b3_emissor,
     enrich_historical_identity_with_fca_names,
     enrich_historical_identity_with_registry_history,
+    enrich_historical_identity_with_verified_evidence,
     evaluate_identity_gate,
     parse_b3_emissor_zip,
     parse_b3_isin_registry_zip,
+    verified_historical_identity_evidence,
 )
 from mercado_financeiro.security import (
     DownloadPolicy,
@@ -196,6 +198,18 @@ def _top_unresolved(frame: pd.DataFrame, limit: int = 15) -> list[dict[str, obje
 
 def main() -> None:
     policy = IdentityGatePolicy()
+    verified_evidence = verified_historical_identity_evidence()
+    print(
+        "VERIFIED_IDENTITY_EVIDENCE "
+        + json.dumps(
+            {
+                "rows": len(verified_evidence),
+                "security_ids": sorted(verified_evidence["security_id"].astype(str).tolist()),
+                "source": "reviewed official CVM document pairs; static identity only",
+            },
+            sort_keys=True,
+        )
+    )
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
         fca_ticker, fca_names = _load_fca(root)
@@ -220,13 +234,16 @@ def main() -> None:
                 prefix, registry_history
             )
             named, name_audit = enrich_historical_identity_with_fca_names(exact, fca_names)
-            gate = evaluate_identity_gate(named, policy)
+            verified, verified_audit = enrich_historical_identity_with_verified_evidence(
+                named, verified_evidence
+            )
+            gate = evaluate_identity_gate(verified, policy)
             if not gate.passed:
                 failed_years.append(year)
 
             record = {
                 "year": year,
-                "observations": int(len(named)),
+                "observations": int(len(verified)),
                 "unique_tickers": int(quote_audit.unique_tickers),
                 "baseline_mapped_row_ratio": float(baseline.mapped_row_ratio),
                 "prefix_mapped_row_ratio": float(prefix_audit.mapped_row_ratio),
@@ -239,6 +256,10 @@ def main() -> None:
                 "name_mapped_volume_ratio": float(name_audit.mapped_volume_ratio),
                 "name_newly_resolved_rows": int(name_audit.newly_resolved_rows),
                 "name_ambiguous_short_names": int(name_audit.ambiguous_short_names),
+                "verified_mapped_row_ratio": float(verified_audit.mapped_row_ratio),
+                "verified_mapped_volume_ratio": float(verified_audit.mapped_volume_ratio),
+                "verified_newly_resolved_rows": int(verified_audit.newly_resolved_rows),
+                "verified_disagreement_rows": int(verified_audit.disagreement_rows),
                 "ambiguous_volume_ratio": float(gate.ambiguous_volume_ratio),
                 "largest_unresolved_volume_ratio": float(gate.largest_unresolved_volume_ratio),
                 "unresolved_securities": int(gate.unresolved_securities),
@@ -251,13 +272,14 @@ def main() -> None:
                 print(
                     "IDENTITY_UNRESOLVED_TOP "
                     + json.dumps(
-                        {"year": year, "values": _top_unresolved(named)},
+                        {"year": year, "values": _top_unresolved(verified)},
                         sort_keys=True,
                     )
                 )
 
         summary = {
             "registry_provenance": registry_provenance,
+            "verified_identity_rows": len(verified_evidence),
             "policy": {
                 "min_mapped_volume_ratio": policy.min_mapped_volume_ratio,
                 "min_mapped_row_ratio": policy.min_mapped_row_ratio,

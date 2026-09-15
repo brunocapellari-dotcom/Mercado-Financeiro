@@ -71,6 +71,11 @@ from .universe import (
     build_tradable_universe_pit,
     resolve_fca_identity_asof,
 )
+from .verified_identity import (
+    VerifiedIdentityEnrichmentAudit,
+    enrich_historical_identity_with_verified_evidence,
+    verified_historical_identity_evidence,
+)
 
 __all__ = [
     "B3EmissorAudit",
@@ -89,6 +94,7 @@ __all__ = [
     "SnapshotAudit",
     "TotalReturnAudit",
     "TradableUniverseAudit",
+    "VerifiedIdentityEnrichmentAudit",
     "assert_identity_gate",
     "audit_dfp_composition_capital",
     "audit_fca_issuer_name_registry",
@@ -109,6 +115,7 @@ __all__ = [
     "enrich_historical_identity_with_exact_isin",
     "enrich_historical_identity_with_fca_names",
     "enrich_historical_identity_with_registry_history",
+    "enrich_historical_identity_with_verified_evidence",
     "evaluate_identity_gate",
     "isin_checksum_valid",
     "normalize_cnpj",
@@ -126,4 +133,5 @@ __all__ = [
     "shares_outstanding_asof",
     "ticker_issuer_code",
     "validate_security_master_scd2",
+    "verified_historical_identity_evidence",
 ]

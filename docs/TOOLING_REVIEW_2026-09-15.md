@@ -91,6 +91,28 @@ processes. It is not a core dependency for the current repository-only stage. Wh
 introduced, telemetry must never contain broker credentials, sensitive raw payloads or
 unbounded market-data bodies.
 
+### bashtage/arch — APPROVED TOURNAMENT VALIDATION ADAPTER, NOT CORE YET
+
+The active `arch` project is Production/Stable, NCSA licensed and supports Python
+3.10–3.13. Its `arch.bootstrap` package provides SPA, StepM, MCS and block-bootstrap
+implementations explicitly aimed at multiple-comparison/Reality-Check problems. This is
+non-redundant with the current Tournament because it can independently challenge our
+in-house White Reality Check, PBO and DSR implementation. It should be introduced as an
+optional validation dependency when the real 2011–2026 Tournament is materialized,
+with parity tests against the canonical in-house path. It is not installed in this
+identity-closing change because doing so would add SciPy/statsmodels before the first
+real Tournament dataset exists.
+
+### dcajasn/Riskfolio-Lib — SECONDARY OPTIMIZER BENCHMARK / NO DUPLICATE ADOPTION
+
+Riskfolio-Lib is active, BSD-3-Clause and has broad support for portfolio risk measures,
+drawdown, risk parity and robust optimization. It substantially overlaps skfolio.
+Mercado Financeiro will therefore not install both frameworks as competing production
+optimizers. skfolio remains the preferred first benchmark because its sklearn-style
+cross-validation and combinatorial-purged facilities complement the existing research
+stack; Riskfolio-Lib remains a secondary reference for a specific risk model that
+skfolio cannot reproduce.
+
 ## Retained as references, not added as overlapping core dependencies
 
 ### exchange_calendars — REFERENCE / NO CORE DEPENDENCY
@@ -110,16 +132,18 @@ vectorized experimentation. It is not adopted as the canonical backtester becaus
 Mercado Financeiro requires B3-specific PIT identity, explicit information-availability
 timestamps, corporate-action evidence, deterministic costs, capacity, settlement and
 promotion gates. A generic engine would duplicate or bypass those controls. It may
-later serve as an independent numerical cross-check for simple strategies.
+later serve as an independent numerical cross-check for simple strategies; licensing
+must be revalidated before any code dependency is introduced.
 
 ### skfolio 1.2.6 — REFERENCE / LATER OPTIMIZATION ADAPTER
 
 Actively maintained, BSD-3-Clause, with strong portfolio optimization and model-
-selection facilities. It is a good candidate when the production portfolio optimizer
-is introduced. It is not added now because the current project does not yet have a
-canonical optimizer to replace; adding it today would be unused dependency surface.
-When adopted, it should sit behind a Mercado Financeiro portfolio-optimizer protocol
-and be compared against simple deterministic baselines.
+selection facilities including walk-forward/combinatorial-purged validation. It is a
+good candidate when the production portfolio optimizer is introduced. It is not added
+now because the current project does not yet have a canonical optimizer to replace;
+adding it today would be unused dependency surface. When adopted, it should sit behind
+a Mercado Financeiro portfolio-optimizer protocol and be compared against simple
+deterministic baselines.
 
 ### PYield — REFERENCE / OPTIONAL FIXED-INCOME FUTURE
 
@@ -148,13 +172,13 @@ API changes. It is unsuitable as a production dependency.
 
 ## Tools deliberately not introduced
 
-Airflow, dbt, Polars, Streamlit, MLflow, Pandera and a separate feature-store service
-were not added. The present workload does not justify overlapping operational layers.
-GitHub Actions already provides deterministic validation orchestration; DuckDB plus
-immutable PIT snapshots provides the local analytical store; the existing feature and
-experiment contracts provide provenance. Google Cloud preparation does not change this
-rule: BigQuery is a future persistent/scale target, not permission to add an
-orchestration stack before a measured requirement exists.
+Airflow, dbt, Polars, Streamlit, MLflow, Pandera, Riskfolio-Lib and a separate feature-
+store service were not added. The present workload does not justify overlapping
+operational layers. GitHub Actions already provides deterministic validation
+orchestration; DuckDB plus immutable PIT snapshots provides the local analytical store;
+the existing feature and experiment contracts provide provenance. Google Cloud
+preparation does not change this rule: BigQuery is a future persistent/scale target,
+not permission to add an orchestration stack before a measured requirement exists.
 
 ## Architecture changes resulting from the review
 
@@ -176,13 +200,18 @@ orchestration stack before a measured requirement exists.
    cannot become independent code/data/deployment authorities.
 9. Model registry, declarative dataframe validation and distributed observability are
    reserved for measured operational needs rather than added pre-emptively.
+10. The anti-data-snooping layer will use `arch` SPA/MCS as an independent Tournament
+    validator rather than replacing the canonical PIT-aware research engine.
+11. Portfolio-library scope stays singular: skfolio is the preferred first optimizer
+    benchmark; Riskfolio-Lib is not installed in parallel without a demonstrated gap.
 
 ## Next tool reviews
 
 Re-evaluate tools only at concrete boundaries: portfolio optimization (skfolio),
-high-throughput BigQuery connectivity (official client versus ADBC), production model
-registry (MLflow or a lighter alternative), distributed observability (OpenTelemetry),
-large parallel feature computation if DuckDB becomes a bottleneck, broker FIX/API
-execution, and an external independent backtest parity engine. Each candidate must pass
-license, Python-version, security, determinism, PIT and whole-project regression gates
-before it can replace an existing component.
+independent anti-data-snooping validation (`arch` SPA/MCS), high-throughput BigQuery
+connectivity (official client versus ADBC), production model registry (MLflow or a
+lighter alternative), distributed observability (OpenTelemetry), large parallel feature
+computation if DuckDB becomes a bottleneck, broker FIX/API execution, and an external
+independent backtest parity engine. Each candidate must pass license, Python-version,
+security, determinism, PIT and whole-project regression gates before it can replace an
+existing component.
