@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
+from threading import RLock
 from typing import Protocol
 
 from mercado_financeiro.risk import DeterministicRiskEngine, OrderIntent, RiskContext
@@ -41,7 +42,8 @@ class IdempotencyConflict(RuntimeError):
 class InMemoryIdempotencyStore:
     """Reference idempotency store for tests/paper.
 
-    Production live must replace this with a durable atomic store/transaction.
+    Production live must replace this with a durable atomic store/transaction
+    and retain the deterministic client_order_id at the broker boundary.
     """
 
     def __init__(self) -> None:
@@ -70,49 +72,54 @@ class DeterministicExecutionEngine:
         self._risk_engine = risk_engine
         self._broker = broker
         self._idempotency = idempotency_store or InMemoryIdempotencyStore()
+        self._execution_lock = RLock()
 
     def execute(self, order: OrderIntent, context: RiskContext) -> ExecutionResult:
-        fingerprint = self._fingerprint(order)
-        existing = self._idempotency.get(order.idempotency_key)
-        if existing is not None:
-            existing_fingerprint, existing_result = existing
-            if existing_fingerprint != fingerprint:
-                raise IdempotencyConflict("idempotency key reused with different order payload")
-            return ExecutionResult(
-                accepted=existing_result.accepted,
-                status=existing_result.status,
-                client_order_id=existing_result.client_order_id,
-                broker_order_id=existing_result.broker_order_id,
-                risk_reasons=existing_result.risk_reasons,
-                duplicate=True,
-            )
+        # Reference runtime serializes check -> risk -> submit -> persist so two
+        # local threads cannot duplicate an order. Production must additionally
+        # use a durable atomic store and broker-side client_order_id deduplication
+        # to cover process/node failures.
+        with self._execution_lock:
+            fingerprint = self._fingerprint(order)
+            existing = self._idempotency.get(order.idempotency_key)
+            if existing is not None:
+                existing_fingerprint, existing_result = existing
+                if existing_fingerprint != fingerprint:
+                    raise IdempotencyConflict("idempotency key reused with different order payload")
+                return ExecutionResult(
+                    accepted=existing_result.accepted,
+                    status=existing_result.status,
+                    client_order_id=existing_result.client_order_id,
+                    broker_order_id=existing_result.broker_order_id,
+                    risk_reasons=existing_result.risk_reasons,
+                    duplicate=True,
+                )
 
-        decision = self._risk_engine.evaluate(order, context)
-        client_order_id = self._client_order_id(order)
-        if not decision.approved:
+            decision = self._risk_engine.evaluate(order, context)
+            client_order_id = self._client_order_id(order)
+            if not decision.approved:
+                result = ExecutionResult(
+                    accepted=False,
+                    status="risk_rejected",
+                    client_order_id=client_order_id,
+                    broker_order_id=None,
+                    risk_reasons=decision.reasons,
+                )
+                if not self._idempotency.put_if_absent(order.idempotency_key, fingerprint, result):
+                    raise IdempotencyConflict("idempotency store changed during rejection")
+                return result
+
+            ack = self._broker.submit_order(order, client_order_id=client_order_id)
             result = ExecutionResult(
-                accepted=False,
-                status="risk_rejected",
+                accepted=True,
+                status=ack.status,
                 client_order_id=client_order_id,
-                broker_order_id=None,
-                risk_reasons=decision.reasons,
+                broker_order_id=ack.broker_order_id,
+                risk_reasons=(),
             )
-            self._idempotency.put_if_absent(order.idempotency_key, fingerprint, result)
+            if not self._idempotency.put_if_absent(order.idempotency_key, fingerprint, result):
+                raise IdempotencyConflict("idempotency store changed during execution")
             return result
-
-        ack = self._broker.submit_order(order, client_order_id=client_order_id)
-        result = ExecutionResult(
-            accepted=True,
-            status=ack.status,
-            client_order_id=client_order_id,
-            broker_order_id=ack.broker_order_id,
-            risk_reasons=(),
-        )
-        if not self._idempotency.put_if_absent(order.idempotency_key, fingerprint, result):
-            # A production durable store must make check+submit+persist atomic or
-            # broker-side client_order_id idempotency must guarantee no duplicate.
-            raise IdempotencyConflict("concurrent idempotency race detected")
-        return result
 
     @staticmethod
     def _client_order_id(order: OrderIntent) -> str:
