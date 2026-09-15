@@ -50,6 +50,16 @@ class HistoricalDataSource(Protocol):
 
 
 def require_pit_columns(frame: pd.DataFrame) -> None:
+    """Require valid event/reference and information-availability timestamps.
+
+    The generic PIT contract deliberately does *not* impose
+    ``available_from >= reference_date``. Some legitimate market/macro observations
+    are announcements about a future effective/reference date (for example a policy
+    target known before its effective date). Look-ahead safety is governed by
+    ``available_from``. Domain-specific datasets such as financial statements may
+    impose the stronger ordering in their own validators.
+    """
+
     required = {"reference_date", "available_from"}
     missing = required - set(frame.columns)
     if missing:
@@ -58,15 +68,15 @@ def require_pit_columns(frame: pd.DataFrame) -> None:
     available = pd.to_datetime(frame["available_from"], errors="coerce", utc=True)
     if reference.isna().any() or available.isna().any():
         raise ValueError("invalid reference_date/available_from in historical dataset")
-    if (available < reference).any():
-        raise ValueError("available_from cannot precede reference_date")
 
 
 def asof(frame: pd.DataFrame, cutoff: str | pd.Timestamp) -> pd.DataFrame:
     """Return only observations known by cutoff.
 
     This helper deliberately requires an explicit ``available_from`` column so a
-    reference date can never be mistaken for an information-availability date.
+    reference/effective date can never be mistaken for an information-availability
+    date. Announced future-effective observations remain valid if they were genuinely
+    known by the cutoff.
     """
 
     require_pit_columns(frame)
