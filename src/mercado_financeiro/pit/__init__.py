@@ -7,6 +7,13 @@ from .b3_emissor import (
     resolve_b3_emissor_identity,
     ticker_issuer_code,
 )
+from .b3_isin import (
+    B3IsinRegistryAudit,
+    ExactIsinEnrichmentAudit,
+    enrich_historical_identity_with_exact_isin,
+    isin_checksum_valid,
+    parse_b3_isin_registry_zip,
+)
 from .cvm import (
     SnapshotAudit,
     audit_dfp_composition_capital,
@@ -18,6 +25,12 @@ from .fca import (
     audit_fca_ticker_issuer_bridge,
     combine_fca_ticker_issuer_history,
     normalize_fca_share_ticker,
+)
+from .identity_gate import (
+    IdentityGatePolicy,
+    IdentityGateResult,
+    assert_identity_gate,
+    evaluate_identity_gate,
 )
 from .market_cap import (
     MarketCapResult,
@@ -37,12 +50,17 @@ from .universe import (
 
 __all__ = [
     "B3EmissorAudit",
+    "B3IsinRegistryAudit",
+    "ExactIsinEnrichmentAudit",
     "FCATickerBridgeAudit",
     "IdentityEnrichmentAudit",
+    "IdentityGatePolicy",
+    "IdentityGateResult",
     "IdentityPolicy",
     "MarketCapResult",
     "SnapshotAudit",
     "TradableUniverseAudit",
+    "assert_identity_gate",
     "audit_dfp_composition_capital",
     "audit_fca_ticker_issuer_bridge",
     "audit_fre_capital_social",
@@ -54,10 +72,14 @@ __all__ = [
     "compute_market_cap_asof",
     "coverage_audit",
     "enrich_historical_identity_with_b3_emissor",
+    "enrich_historical_identity_with_exact_isin",
+    "evaluate_identity_gate",
+    "isin_checksum_valid",
     "normalize_cnpj",
     "normalize_dfp_shares_outstanding",
     "normalize_fca_share_ticker",
     "parse_b3_emissor_zip",
+    "parse_b3_isin_registry_zip",
     "resolve_b3_emissor_identity",
     "resolve_fca_identity_asof",
     "resolve_security_issuer_asof",
