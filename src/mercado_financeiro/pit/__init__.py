@@ -14,6 +14,10 @@ from .b3_isin import (
     isin_checksum_valid,
     parse_b3_isin_registry_zip,
 )
+from .b3_registry_history import (
+    combine_b3_isin_registries,
+    enrich_historical_identity_with_registry_history,
+)
 from .cvm import (
     SnapshotAudit,
     audit_dfp_composition_capital,
@@ -68,11 +72,13 @@ __all__ = [
     "build_security_master_scd2",
     "build_tradable_universe_pit",
     "classify_share_class",
+    "combine_b3_isin_registries",
     "combine_fca_ticker_issuer_history",
     "compute_market_cap_asof",
     "coverage_audit",
     "enrich_historical_identity_with_b3_emissor",
     "enrich_historical_identity_with_exact_isin",
+    "enrich_historical_identity_with_registry_history",
     "evaluate_identity_gate",
     "isin_checksum_valid",
     "normalize_cnpj",
