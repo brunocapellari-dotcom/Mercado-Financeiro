@@ -8,7 +8,12 @@ import pandas as pd
 
 from .cvm import _inner_zip_bytes, _read_csv
 
-_SHARE_TICKER_RE = re.compile(r"^[A-Z]{4}[0-9]{1,2}$")
+# FCA contains both real B3 identifiers and free-text/numeric junk. The grammar is
+# intentionally permissive enough for historically observed B3 shares such as B3SA3,
+# CAL4, EQMA3B, GOLL54 and BRGE11. This function only produces a candidate;
+# promotion into issuer identity still requires an exact ticker observed in B3
+# COTAHIST/BVBG through the downstream join.
+_SHARE_TICKER_CANDIDATE_RE = re.compile(r"^[A-Z0-9]{4,7}$")
 _LEGACY_ZERO_PADDED_SHARE_RE = re.compile(r"^([A-Z]{4})0([3-8])$")
 
 
@@ -35,11 +40,15 @@ def _normalize_stock_type(value: object) -> str | None:
 
 
 def normalize_fca_share_ticker(value: object, share_class: str) -> str | None:
-    """Normalize only historically observed B3 stock ticker formatting.
+    """Return a conservative B3 stock-ticker candidate from FCA free text.
 
-    Older FCA vintages contain codes such as ``BSLI03`` that later appear as
-    ``BSLI3``. The zero-padding normalization is intentionally restricted to
-    ordinary/preferred share suffixes 3-8; other structures are not guessed.
+    Older FCA vintages contain zero-padded share suffixes such as ``BSLI03`` and
+    ``BRSR06``. Real B3 share identifiers are not restricted to four letters plus
+    one digit: roots may contain digits, have three letters, carry a trailing ``B``
+    or use two-digit suffixes. We therefore reject only clearly non-identifier
+    values here (free text, punctuation, letters-only and numbers-only). A candidate
+    becomes canonical identity only when it exactly matches an observed historical
+    B3 ticker in COTAHIST/BVBG downstream.
     """
     if value is None or pd.isna(value):
         return None
@@ -50,7 +59,9 @@ def normalize_fca_share_ticker(value: object, share_class: str) -> str | None:
         match = _LEGACY_ZERO_PADDED_SHARE_RE.fullmatch(ticker)
         if match:
             ticker = f"{match.group(1)}{match.group(2)}"
-    if not _SHARE_TICKER_RE.fullmatch(ticker):
+    if not _SHARE_TICKER_CANDIDATE_RE.fullmatch(ticker):
+        return None
+    if not any(ch.isalpha() for ch in ticker) or not any(ch.isdigit() for ch in ticker):
         return None
     return ticker
 
