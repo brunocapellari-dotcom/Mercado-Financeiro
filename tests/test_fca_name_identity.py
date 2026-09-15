@@ -98,6 +98,21 @@ def test_unique_short_name_resolution_handles_cotahist_abbreviations(tmp_path: P
     assert mapping.loc["ALL AMER LAT", "fca_name_issuer_id"] == "02.421.421/0001-11"
 
 
+def test_historical_initialism_matches_without_literal_acronym_in_legal_name():
+    registry = pd.DataFrame(
+        {
+            "issuer_id": ["02.421.421/0001-11"],
+            "company_name": ["AMERICA LATINA LOGISTICA S.A."],
+            "company_name_normalized": ["AMERICA LATINA LOGISTICA"],
+            "reference_date": [pd.Timestamp("2011-01-01")],
+            "available_from": [pd.Timestamp("2011-03-01", tz="UTC")],
+        }
+    )
+    mapping = resolve_fca_name_identity(pd.Series(["ALL AMER LAT"]), registry).iloc[0]
+    assert mapping["fca_name_mapping_status"] == "resolved"
+    assert mapping["fca_name_issuer_id"] == "02.421.421/0001-11"
+
+
 def test_name_resolution_fails_closed_when_alias_matches_multiple_issuers():
     registry = pd.DataFrame(
         {
@@ -134,7 +149,6 @@ def test_name_enrichment_only_fills_unresolved_and_never_overwrites_stronger_ide
     assert enriched.loc[0, "issuer_id"] == "30.306.294/0001-45"
     assert enriched.loc[0, "identity_resolution_method"] == "CVM_FCA_ISSUER_NAME_UNIQUE"
     assert bool(enriched.loc[0, "identity_reconstruction_uses_later_evidence"])
-    # Existing stronger identity is preserved even when weak name evidence disagrees.
     assert enriched.loc[1, "issuer_id"] == "33.000.167/0001-01"
     assert bool(enriched.loc[1, "identity_weaker_source_disagreed"])
     assert audit.newly_resolved_rows == 1
