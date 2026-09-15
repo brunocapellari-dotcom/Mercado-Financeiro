@@ -41,8 +41,22 @@ def _identifier(value: str, *, kind: str) -> str:
 
 
 def _quoted(identifier: str) -> str:
-    # Identifiers reach this function only after the restrictive grammar above.
-    return f'"{identifier}"'
+    """Return a quoted SQL identifier after enforcing the local identifier grammar."""
+
+    safe = _identifier(identifier, kind="SQL")
+    return '"' + safe + '"'
+
+
+def _sql(*parts: str) -> str:
+    """Central SQL assembly boundary for validated identifiers plus static SQL.
+
+    Runtime values never enter through this helper; they are passed separately as
+    DuckDB parameters. Dynamic identifiers must already have passed ``_quoted``.
+    Keeping SQL assembly in one boundary makes the injection surface auditable and
+    avoids scattered string interpolation throughout the store.
+    """
+
+    return "".join(parts)
 
 
 def _digest(value: str) -> str:
@@ -70,12 +84,12 @@ class PITSnapshotStore:
 
     DuckDB is used as the local analytical execution engine, not as a replacement
     for canonical B3/CVM raw files. Every append carries a source hash, retrieval
-    timestamp and immutable snapshot id.  Point-in-time queries filter by
-    ``available_from`` before any latest-row selection, so a future filing cannot
+    timestamp and immutable snapshot id. Point-in-time queries filter by
+    ``available_from`` before any latest-row selection, so future information cannot
     enter a historical view.
 
-    Dataset and column identifiers are restricted to a conservative grammar; raw
-    SQL supplied by callers is intentionally not accepted by this boundary.
+    Dataset and column identifiers are restricted to a conservative grammar; raw SQL
+    supplied by callers is intentionally not accepted by this boundary.
     """
 
     def __init__(self, database: str | Path = ":memory:") -> None:
@@ -105,7 +119,7 @@ class PITSnapshotStore:
 
     @staticmethod
     def _table_name(dataset: str) -> str:
-        return f"pit__{_identifier(dataset, kind='dataset').lower()}"
+        return "pit__" + _identifier(dataset, kind="dataset").lower()
 
     def _table_exists(self, table: str) -> bool:
         row = self._connection.execute(
@@ -115,7 +129,8 @@ class PITSnapshotStore:
         return row is not None
 
     def _base_columns(self, table: str) -> list[str]:
-        rows = self._connection.execute(f"DESCRIBE {_quoted(table)}").fetchall()
+        query = _sql("DESCRIBE ", _quoted(table))
+        rows = self._connection.execute(query).fetchall()
         return [str(row[0]) for row in rows if str(row[0]) not in _RESERVED_COLUMNS]
 
     def ingest_snapshot(
@@ -196,22 +211,23 @@ class PITSnapshotStore:
         try:
             self._connection.execute("BEGIN TRANSACTION")
             if not self._table_exists(table):
-                self._connection.execute(
-                    f"""
-                    CREATE TABLE {_quoted(table)} AS
-                    SELECT *,
-                           CAST(NULL AS VARCHAR) AS __snapshot_id,
-                           CAST(NULL AS VARCHAR) AS __source_sha256,
-                           CAST(NULL AS TIMESTAMPTZ) AS __retrieved_at
-                    FROM __mf_incoming
-                    WHERE FALSE
-                    """
+                create_query = _sql(
+                    "CREATE TABLE ",
+                    _quoted(table),
+                    " AS SELECT *, "
+                    "CAST(NULL AS VARCHAR) AS __snapshot_id, "
+                    "CAST(NULL AS VARCHAR) AS __source_sha256, "
+                    "CAST(NULL AS TIMESTAMPTZ) AS __retrieved_at "
+                    "FROM __mf_incoming WHERE FALSE",
                 )
+                self._connection.execute(create_query)
+            insert_query = _sql(
+                "INSERT INTO ",
+                _quoted(table),
+                " SELECT *, ?, ?, ? FROM __mf_incoming",
+            )
             self._connection.execute(
-                f"""
-                INSERT INTO {_quoted(table)}
-                SELECT *, ?, ?, ? FROM __mf_incoming
-                """,
+                insert_query,
                 [snapshot_id, source_sha256, retrieved.to_pydatetime()],
             )
             self._connection.execute(
@@ -276,15 +292,17 @@ class PITSnapshotStore:
             raise ValueError(f"dataset has no {available_from_column!r} column")
         cutoff_ts = _utc_timestamp(cutoff, field="cutoff")
         select = ", ".join(_quoted(column) for column in columns)
-        return self._connection.execute(
-            f"""
-            SELECT {select}
-            FROM {_quoted(table)}
-            WHERE {_quoted(available_from_column)} <= ?
-            ORDER BY {_quoted(available_from_column)}
-            """,
-            [cutoff_ts.to_pydatetime()],
-        ).df()
+        query = _sql(
+            "SELECT ",
+            select,
+            " FROM ",
+            _quoted(table),
+            " WHERE ",
+            _quoted(available_from_column),
+            " <= ? ORDER BY ",
+            _quoted(available_from_column),
+        )
+        return self._connection.execute(query, [cutoff_ts.to_pydatetime()]).df()
 
     def latest_asof(
         self,
@@ -309,21 +327,23 @@ class PITSnapshotStore:
         cutoff_ts = _utc_timestamp(cutoff, field="cutoff")
         select = ", ".join(_quoted(column) for column in columns)
         partition = ", ".join(_quoted(column) for column in keys)
-        ordering = (
-            f"{_quoted(available_from_column)} DESC, "
-            "__retrieved_at DESC, __snapshot_id DESC"
+        ordering = _sql(
+            _quoted(available_from_column),
+            " DESC, __retrieved_at DESC, __snapshot_id DESC",
         )
         order_output = ", ".join(_quoted(column) for column in keys)
-        return self._connection.execute(
-            f"""
-            SELECT {select}
-            FROM {_quoted(table)}
-            WHERE {_quoted(available_from_column)} <= ?
-            QUALIFY ROW_NUMBER() OVER (
-                PARTITION BY {partition}
-                ORDER BY {ordering}
-            ) = 1
-            ORDER BY {order_output}
-            """,
-            [cutoff_ts.to_pydatetime()],
-        ).df()
+        query = _sql(
+            "SELECT ",
+            select,
+            " FROM ",
+            _quoted(table),
+            " WHERE ",
+            _quoted(available_from_column),
+            " <= ? QUALIFY ROW_NUMBER() OVER (PARTITION BY ",
+            partition,
+            " ORDER BY ",
+            ordering,
+            ") = 1 ORDER BY ",
+            order_output,
+        )
+        return self._connection.execute(query, [cutoff_ts.to_pydatetime()]).df()
