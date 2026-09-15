@@ -153,6 +153,15 @@ def test_store_rejects_unsafe_identifiers_and_naive_cutoffs():
                 source_sha256=_digest(b"a"),
                 retrieved_at="2026-01-02T00:00:00Z",
             )
+        with pytest.raises(ValueError):
+            store.ingest_snapshot(
+                "safe",
+                frame.rename(columns={"value": "value);drop_table"}),
+                snapshot_id="unsafe-column",
+                source_sha256=_digest(b"unsafe-column"),
+                retrieved_at="2026-01-02T00:00:00Z",
+            )
+
         store.ingest_snapshot(
             "safe",
             frame,
@@ -165,4 +174,16 @@ def test_store_rejects_unsafe_identifiers_and_naive_cutoffs():
                 "safe",
                 "2026-01-03",
                 partition_by=["issuer_id"],
+            )
+        with pytest.raises(ValueError):
+            store.latest_asof(
+                "safe",
+                "2026-01-03T00:00:00Z",
+                partition_by=["issuer_id;drop"],
+            )
+        with pytest.raises(ValueError):
+            store.history_asof(
+                "safe",
+                "2026-01-03T00:00:00Z",
+                available_from_column="available_from;drop",
             )
