@@ -231,6 +231,10 @@ def enrich_historical_identity_with_b3_emissor(
     out["financial_volume"] = pd.to_numeric(out["financial_volume"], errors="coerce")
     if out[["trade_date", "financial_volume"]].isna().any().any():
         raise ValueError("universe contains invalid trade_date/financial_volume")
+    if "identity_evidence_available_from" in out.columns:
+        out["identity_evidence_available_from"] = pd.to_datetime(
+            out["identity_evidence_available_from"], errors="coerce", utc=True
+        )
 
     resolved_before_mask = out["identity_mapping_status"].eq("resolved")
     resolved_before = int(resolved_before_mask.sum())
