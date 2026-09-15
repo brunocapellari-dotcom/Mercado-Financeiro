@@ -18,6 +18,11 @@ def test_live_runtime_fails_closed_by_default():
     result = evaluate_live_runtime(LiveCapabilities())
     assert not result.approved
     assert "durable_idempotency" in result.missing
+    assert "broker_client_order_id_deduplication" in result.missing
+    assert "durable_event_bus" in result.missing
+    assert "durable_model_registry" in result.missing
+    assert "startup_reconciliation_completed" in result.missing
+    assert "verified_settlement_calendar" in result.missing
     assert "secret_manager" in result.missing
     assert "independent_kill_switch" in result.missing
     with pytest.raises(RuntimeError):
@@ -28,13 +33,18 @@ def test_live_runtime_only_passes_when_every_hardening_capability_is_true():
     result = evaluate_live_runtime(
         LiveCapabilities(
             durable_idempotency=True,
+            broker_client_order_id_deduplication=True,
             durable_webhook_replay_protection=True,
+            durable_event_bus=True,
+            durable_model_registry=True,
             external_immutable_audit_log=True,
             secret_manager=True,
             restricted_egress=True,
             independent_reconciliation=True,
+            startup_reconciliation_completed=True,
             independent_kill_switch=True,
             separate_live_identity=True,
+            verified_settlement_calendar=True,
             broker_mfa=True,
             ip_restriction_enforced_or_unsupported=True,
         )
