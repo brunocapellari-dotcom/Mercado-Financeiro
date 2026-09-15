@@ -1,11 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from hashlib import sha256
 from threading import RLock
 from typing import Protocol
 
-from mercado_financeiro.risk import DeterministicRiskEngine, OrderIntent, RiskContext
+from mercado_financeiro.risk import (
+    DeterministicRiskEngine,
+    KillSwitch,
+    OrderIntent,
+    RiskContext,
+)
 
 
 @dataclass(frozen=True)
@@ -93,6 +98,8 @@ class DeterministicExecutionEngine:
     Unknown transport outcomes are never blindly retried. The idempotency key is
     sealed as ``submission_ambiguous`` and must be resolved by broker query or
     reconciliation before the system can make a new state-changing decision.
+    When an independent kill switch is configured, its state is read inside the
+    execution boundary so strategy/model code cannot suppress it.
     """
 
     def __init__(
@@ -101,15 +108,21 @@ class DeterministicExecutionEngine:
         risk_engine: DeterministicRiskEngine,
         broker: BrokerAdapter,
         idempotency_store: IdempotencyStore | None = None,
+        kill_switch: KillSwitch | None = None,
     ) -> None:
         self._risk_engine = risk_engine
         self._broker = broker
         self._idempotency = idempotency_store or InMemoryIdempotencyStore()
+        self._kill_switch = kill_switch
         self._execution_lock = RLock()
 
     @property
     def idempotency_store_live_safe(self) -> bool:
         return bool(getattr(self._idempotency, "live_safe", False))
+
+    @property
+    def kill_switch_live_safe(self) -> bool:
+        return bool(self._kill_switch is not None and getattr(self._kill_switch, "live_safe", False))
 
     def execute(self, order: OrderIntent, context: RiskContext) -> ExecutionResult:
         # Reference runtime serializes check -> risk -> submit -> persist so two
@@ -133,8 +146,27 @@ class DeterministicExecutionEngine:
                     requires_reconciliation=existing_result.requires_reconciliation,
                 )
 
-            decision = self._risk_engine.evaluate(order, context)
             client_order_id = self._client_order_id(order)
+            if self._kill_switch is not None:
+                try:
+                    switch_state = self._kill_switch.status()
+                except Exception:
+                    result = ExecutionResult(
+                        accepted=False,
+                        status="risk_rejected",
+                        client_order_id=client_order_id,
+                        broker_order_id=None,
+                        risk_reasons=("kill_switch_status_unavailable",),
+                    )
+                    if not self._idempotency.put_if_absent(order.idempotency_key, fingerprint, result):
+                        raise IdempotencyConflict("idempotency store changed during kill-switch rejection")
+                    return result
+                context = replace(
+                    context,
+                    kill_switch_engaged=context.kill_switch_engaged or switch_state.engaged,
+                )
+
+            decision = self._risk_engine.evaluate(order, context)
             if not decision.approved:
                 result = ExecutionResult(
                     accepted=False,
