@@ -5,8 +5,6 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import tempfile
-import time
-import urllib.error
 
 import pandas as pd
 
@@ -26,7 +24,11 @@ from mercado_financeiro.pit import (
     parse_b3_emissor_zip,
     parse_b3_isin_registry_zip,
 )
-from mercado_financeiro.security import DownloadPolicy, download_https
+from mercado_financeiro.security import (
+    DownloadPolicy,
+    RetryPolicy,
+    download_https_with_retry,
+)
 
 FCA_URL = "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/FCA/DADOS/fca_cia_aberta_{year}.zip"
 COTAHIST_URL = "https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_A{year}.ZIP"
@@ -35,6 +37,7 @@ FILE_URL = "https://sistemaswebb3-listados.b3.com.br/isinProxy/IsinCall/GetFileD
 
 ARCHIVED_B3_FILE_ID = 51780
 ARCHIVE_PUBLICLY_OBSERVED_AT = pd.Timestamp("2022-01-24T17:37:59Z")
+_SOURCE_POLICY = DownloadPolicy(max_bytes=400_000_000, timeout_seconds=180.0)
 
 
 def _token(file_id: int | str) -> str:
@@ -42,22 +45,15 @@ def _token(file_id: int | str) -> str:
 
 
 def _get(url: str, attempts: int = 5) -> bytes:
-    policy = DownloadPolicy(max_bytes=400_000_000, timeout_seconds=180.0)
-    last: Exception | None = None
-    for attempt in range(1, attempts + 1):
-        try:
-            payload = download_https(url, policy)
-            if not payload:
-                raise OSError("official source returned empty response")
-            return payload
-        except (urllib.error.URLError, TimeoutError, OSError, ValueError) as exc:
-            last = exc
-            if attempt == attempts:
-                break
-            delay = min(2**attempt, 20)
-            print(f"SOURCE_RETRY attempt={attempt}/{attempts} delay={delay} url={url!r}")
-            time.sleep(delay)
-    raise RuntimeError(f"official source unavailable after {attempts} attempts: {url}") from last
+    return download_https_with_retry(
+        url,
+        _SOURCE_POLICY,
+        retry_policy=RetryPolicy(
+            attempts=attempts,
+            initial_delay_seconds=2.0,
+            max_delay_seconds=20.0,
+        ),
+    )
 
 
 def _load_fca(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -69,12 +65,6 @@ def _load_fca(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         ticker_frame, ticker_audit = audit_fca_ticker_issuer_bridge(target, year)
         ticker_frames.append(ticker_frame)
 
-        # The CVM annual materialization can contain a small number of general rows
-        # with no exact represented ledger version. Such rows have no defensible
-        # availability timestamp, so that *vintage* is excluded from the weak name
-        # bridge rather than fabricating a date or aborting stronger identity sources.
-        # The exclusion is explicit in logs and the final identity coverage gate still
-        # fails closed if remaining official evidence is insufficient.
         try:
             name_frame, name_audit = audit_fca_issuer_name_registry(target, year)
         except ValueError as exc:
