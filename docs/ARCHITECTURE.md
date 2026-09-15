@@ -29,6 +29,12 @@ O contrato comum para dados de mercado é `MarketDataProvider`. Implementações
 
 Coletores live devem manter: reconexão, sequence number quando disponível, detecção de gap, detecção de stale feed, exchange timestamp, received timestamp, source/provider, instrument, schema/version e source health.
 
+### Data plane local e futuro Google Cloud
+
+O código, contratos, esquemas, testes e infraestrutura permanecem canônicos no GitHub. DuckDB é o engine analítico local e de paridade. O alvo persistente futuro é Cloud Storage + BigQuery, sem substituir os arquivos oficiais brutos como evidência canônica. A migração só pode ocorrer após os gates definidos em `docs/GOOGLE_CLOUD_READINESS.md`.
+
+Replit, Claude Code, Codex e outros ambientes são superfícies de desenvolvimento subordinadas ao GitHub. Nenhum deles pode manter implementação divergente, criar infraestrutura produtiva independente ou tornar-se fonte paralela de verdade.
+
 ## 2. INTELIGÊNCIA
 
 Transforma dados aprovados em contexto explicável, sem autoridade para negociar.
