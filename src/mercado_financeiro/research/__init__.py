@@ -5,6 +5,13 @@ from .baselines import (
     market_cap_weight,
     top_quantile_equal_weight,
 )
+from .experiments import (
+    ExperimentRecorder,
+    ExperimentRunManifest,
+    ExperimentStatus,
+    ExperimentStore,
+    InMemoryExperimentStore,
+)
 from .feature_contract import (
     FeatureField,
     FeatureSchema,
@@ -15,6 +22,7 @@ from .feature_contract import (
     validate_feature_frame,
 )
 from .features import FeatureMartAudit, build_price_features_pit, point_in_time_asof_join
+from .freshness import assert_feature_freshness
 from .tournament import (
     PerformanceMetrics,
     TournamentPrerequisites,
@@ -32,16 +40,22 @@ from .tournament import (
 )
 
 __all__ = [
+    "ExperimentRecorder",
+    "ExperimentRunManifest",
+    "ExperimentStatus",
+    "ExperimentStore",
     "FeatureField",
     "FeatureMartAudit",
     "FeatureSchema",
     "FeatureSnapshotManifest",
+    "InMemoryExperimentStore",
     "PerformanceMetrics",
     "TournamentPrerequisites",
     "TournamentReadiness",
     "WalkForwardSplit",
     "apply_transaction_costs",
     "assert_feature_cutoff",
+    "assert_feature_freshness",
     "assert_long_only_weights",
     "assert_tournament_ready",
     "assert_training_serving_parity",
