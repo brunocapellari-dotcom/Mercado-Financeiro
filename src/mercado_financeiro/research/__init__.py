@@ -23,6 +23,7 @@ from .feature_contract import (
 )
 from .features import FeatureMartAudit, build_price_features_pit, point_in_time_asof_join
 from .freshness import assert_feature_freshness
+from .purged_cv import PurgedWalkForwardFold, purged_walk_forward_splits
 from .tournament import (
     PerformanceMetrics,
     TournamentPrerequisites,
@@ -50,6 +51,7 @@ __all__ = [
     "FeatureSnapshotManifest",
     "InMemoryExperimentStore",
     "PerformanceMetrics",
+    "PurgedWalkForwardFold",
     "TournamentPrerequisites",
     "TournamentReadiness",
     "WalkForwardSplit",
@@ -70,6 +72,7 @@ __all__ = [
     "point_in_time_asof_join",
     "probability_of_backtest_overfitting",
     "probabilistic_sharpe_ratio",
+    "purged_walk_forward_splits",
     "top_quantile_equal_weight",
     "validate_feature_frame",
     "walk_forward_splits",
