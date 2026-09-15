@@ -5,6 +5,7 @@ from .engine import (
     RiskDecision,
     RiskLimits,
 )
+from .kill_switch import InMemoryKillSwitch, KillSwitch, KillSwitchState
 from .portfolio import (
     DeterministicPortfolioRiskEngine,
     PortfolioRiskDecision,
@@ -15,6 +16,9 @@ from .portfolio import (
 __all__ = [
     "DeterministicPortfolioRiskEngine",
     "DeterministicRiskEngine",
+    "InMemoryKillSwitch",
+    "KillSwitch",
+    "KillSwitchState",
     "OrderIntent",
     "PortfolioRiskDecision",
     "PortfolioRiskLimits",
