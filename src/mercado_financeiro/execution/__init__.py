@@ -2,6 +2,7 @@ from .brokerage import (
     BrokerageCostSchedule,
     DeterministicBrokerageModel,
     MarketExecutionState,
+    SettlementCalendar,
     SimulatedFill,
 )
 from .engine import (
@@ -25,5 +26,6 @@ __all__ = [
     "IdempotencyStore",
     "InMemoryIdempotencyStore",
     "MarketExecutionState",
+    "SettlementCalendar",
     "SimulatedFill",
 ]
