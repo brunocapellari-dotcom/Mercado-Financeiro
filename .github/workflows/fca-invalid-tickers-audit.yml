@@ -1,0 +1,26 @@
+name: fca-invalid-tickers-audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/audit_fca_invalid_tickers.py"
+      - ".github/workflows/fca-invalid-tickers-audit.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install pandas
+        run: pip install 'pandas>=2.1'
+      - name: Audit FCA invalid negotiation codes
+        run: python scripts/audit_fca_invalid_tickers.py
