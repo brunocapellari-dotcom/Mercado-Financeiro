@@ -5,7 +5,9 @@ import hashlib
 import io
 from pathlib import PurePosixPath
 import stat
+import time
 from typing import Iterable, Mapping
+import urllib.error
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 import zipfile
@@ -51,6 +53,33 @@ class DownloadPolicy:
             raise ValueError("max_bytes must be positive")
         if not self.allowed_hosts:
             raise ValueError("allowed_hosts must not be empty")
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """Bounded retry policy for public authoritative data sources.
+
+    Retries are deliberately restricted to transport failures and HTTP statuses
+    that can be transient. Security-policy violations and ordinary 4xx responses
+    fail immediately. This keeps resilience in one audited path instead of each
+    collector implementing subtly different retry behavior.
+    """
+
+    attempts: int = 5
+    initial_delay_seconds: float = 2.0
+    max_delay_seconds: float = 20.0
+    multiplier: float = 2.0
+    retry_http_statuses: frozenset[int] = frozenset({403, 408, 425, 429, 500, 502, 503, 504})
+
+    def __post_init__(self) -> None:
+        if self.attempts <= 0:
+            raise ValueError("attempts must be positive")
+        if self.initial_delay_seconds < 0 or self.max_delay_seconds < 0:
+            raise ValueError("retry delays cannot be negative")
+        if self.multiplier < 1:
+            raise ValueError("retry multiplier must be >= 1")
+        if not self.retry_http_statuses:
+            raise ValueError("retry_http_statuses must not be empty")
 
 
 class _ValidatingRedirectHandler(HTTPRedirectHandler):
@@ -173,6 +202,50 @@ def download_https(
     headers: Mapping[str, str] | None = None,
 ) -> bytes:
     return request_https(url, policy, method="GET", headers=headers)
+
+
+def download_https_with_retry(
+    url: str,
+    policy: DownloadPolicy | None = None,
+    *,
+    retry_policy: RetryPolicy | None = None,
+    headers: Mapping[str, str] | None = None,
+) -> bytes:
+    """Download an allowlisted HTTPS source with bounded exponential backoff.
+
+    A non-empty response is required. HTTP 403 is included because several public
+    B3 historical endpoints intermittently reject otherwise identical automated
+    requests; the retry remains bounded and never changes host, URL, credentials,
+    or canonical source. Permanent policy violations are never retried.
+    """
+
+    policy = policy or DownloadPolicy()
+    retry_policy = retry_policy or RetryPolicy()
+    last: BaseException | None = None
+    delay = retry_policy.initial_delay_seconds
+
+    for attempt in range(1, retry_policy.attempts + 1):
+        try:
+            payload = download_https(url, policy, headers=headers)
+            if not payload:
+                raise OSError("official source returned empty response")
+            return payload
+        except SourceSecurityError:
+            raise
+        except urllib.error.HTTPError as exc:
+            if exc.code not in retry_policy.retry_http_statuses:
+                raise
+            last = exc
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+            last = exc
+
+        if attempt < retry_policy.attempts and delay > 0:
+            time.sleep(min(delay, retry_policy.max_delay_seconds))
+        delay = min(delay * retry_policy.multiplier, retry_policy.max_delay_seconds)
+
+    raise RuntimeError(
+        f"official source unavailable after {retry_policy.attempts} attempts: {url}"
+    ) from last
 
 
 def _member_is_symlink(info: zipfile.ZipInfo) -> bool:
