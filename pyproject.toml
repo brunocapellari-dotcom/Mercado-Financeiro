@@ -7,10 +7,17 @@ name = "mercado-financeiro"
 version = "0.1.0"
 description = "Point-in-time quantitative research core for B3/CVM"
 requires-python = ">=3.11"
-dependencies = ["pandas>=2.1", "lxml>=5"]
+dependencies = [
+    "duckdb>=1.5.5,<2",
+    "lxml>=5",
+    "pandas>=2.1",
+]
 
 [project.optional-dependencies]
-test = ["pytest>=8"]
+test = [
+    "hypothesis>=6.140",
+    "pytest>=8",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]

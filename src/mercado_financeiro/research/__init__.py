@@ -39,6 +39,11 @@ from .tournament import (
     walk_forward_splits,
     whites_reality_check,
 )
+from .tournament_runner import (
+    StrategyTournamentResult,
+    TournamentResult,
+    run_oos_tournament,
+)
 
 __all__ = [
     "ExperimentRecorder",
@@ -52,8 +57,10 @@ __all__ = [
     "InMemoryExperimentStore",
     "PerformanceMetrics",
     "PurgedWalkForwardFold",
+    "StrategyTournamentResult",
     "TournamentPrerequisites",
     "TournamentReadiness",
+    "TournamentResult",
     "WalkForwardSplit",
     "apply_transaction_costs",
     "assert_feature_cutoff",
@@ -73,6 +80,7 @@ __all__ = [
     "probability_of_backtest_overfitting",
     "probabilistic_sharpe_ratio",
     "purged_walk_forward_splits",
+    "run_oos_tournament",
     "top_quantile_equal_weight",
     "validate_feature_frame",
     "walk_forward_splits",

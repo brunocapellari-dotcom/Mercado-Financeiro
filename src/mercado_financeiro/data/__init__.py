@@ -13,6 +13,12 @@ from .live import LiveFeedMonitor
 from .macro import MacroAudit, macro_asof, validate_macro_observations
 from .nefin import NEFINRiskFactorsSource
 from .news import NewsEvent, NewsProvider, news_body_digest
+from .pit_store import (
+    PITSnapshotStore,
+    SchemaDriftError,
+    SnapshotConflictError,
+    SnapshotReceipt,
+)
 from .provider import (
     FeedHealth,
     FeedStatus,
@@ -45,7 +51,11 @@ __all__ = [
     "NEFINRiskFactorsSource",
     "NewsEvent",
     "NewsProvider",
+    "PITSnapshotStore",
     "SOURCE_REGISTRY",
+    "SchemaDriftError",
+    "SnapshotConflictError",
+    "SnapshotReceipt",
     "SourceContract",
     "SourceTier",
     "VintageMode",

@@ -70,6 +70,27 @@ jobs:
       - name: Audit historical identity 2011-2026 against official B3 and CVM sources
         run: python scripts/audit_identity_2011_2026.py
 
+  cvm-pit-source-integration:
+    name: cvm-pit-source-integration
+    if: always()
+    needs: deterministic
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install complete project
+        run: |
+          python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+          pip install -e '.[test]'
+      - name: Audit early middle and recent CVM PIT capital vintages
+        run: python scripts/audit_cvm_pit_history.py
+
   bvbg-source-integration:
     name: bvbg-source-integration
     if: always()
@@ -118,6 +139,7 @@ jobs:
     needs:
       - deterministic
       - identity-source-integration
+      - cvm-pit-source-integration
       - bvbg-source-integration
       - macro-source-integration
     runs-on: ubuntu-latest
@@ -127,11 +149,13 @@ jobs:
         env:
           DETERMINISTIC: ${{ needs.deterministic.result }}
           IDENTITY: ${{ needs.identity-source-integration.result }}
+          CVM_PIT: ${{ needs.cvm-pit-source-integration.result }}
           BVBG: ${{ needs.bvbg-source-integration.result }}
           MACRO: ${{ needs.macro-source-integration.result }}
         run: |
           test "$DETERMINISTIC" = success
           test "$IDENTITY" = success
+          test "$CVM_PIT" = success
           test "$BVBG" = success
           test "$MACRO" = success
           echo FULL_PROJECT_GATE_OK
