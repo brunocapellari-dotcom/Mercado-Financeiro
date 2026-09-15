@@ -39,6 +39,22 @@ class IdempotencyConflict(RuntimeError):
     pass
 
 
+class IdempotencyStore(Protocol):
+    """Atomic idempotency boundary used by the execution engine.
+
+    Live implementations must persist the key/fingerprint/result durably and
+    enforce uniqueness across every execution replica.
+    """
+
+    live_safe: bool
+
+    def get(self, key: str) -> tuple[str, ExecutionResult] | None:
+        ...
+
+    def put_if_absent(self, key: str, fingerprint: str, result: ExecutionResult) -> bool:
+        ...
+
+
 class InMemoryIdempotencyStore:
     """Reference idempotency store for tests/paper.
 
@@ -46,17 +62,22 @@ class InMemoryIdempotencyStore:
     and retain the deterministic client_order_id at the broker boundary.
     """
 
+    live_safe = False
+
     def __init__(self) -> None:
         self._records: dict[str, tuple[str, ExecutionResult]] = {}
+        self._lock = RLock()
 
     def get(self, key: str) -> tuple[str, ExecutionResult] | None:
-        return self._records.get(key)
+        with self._lock:
+            return self._records.get(key)
 
     def put_if_absent(self, key: str, fingerprint: str, result: ExecutionResult) -> bool:
-        if key in self._records:
-            return False
-        self._records[key] = (fingerprint, result)
-        return True
+        with self._lock:
+            if key in self._records:
+                return False
+            self._records[key] = (fingerprint, result)
+            return True
 
 
 class DeterministicExecutionEngine:
@@ -67,12 +88,16 @@ class DeterministicExecutionEngine:
         *,
         risk_engine: DeterministicRiskEngine,
         broker: BrokerAdapter,
-        idempotency_store: InMemoryIdempotencyStore | None = None,
+        idempotency_store: IdempotencyStore | None = None,
     ) -> None:
         self._risk_engine = risk_engine
         self._broker = broker
         self._idempotency = idempotency_store or InMemoryIdempotencyStore()
         self._execution_lock = RLock()
+
+    @property
+    def idempotency_store_live_safe(self) -> bool:
+        return bool(getattr(self._idempotency, "live_safe", False))
 
     def execute(self, order: OrderIntent, context: RiskContext) -> ExecutionResult:
         # Reference runtime serializes check -> risk -> submit -> persist so two
