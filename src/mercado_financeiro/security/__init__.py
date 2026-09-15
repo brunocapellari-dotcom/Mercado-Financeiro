@@ -9,6 +9,7 @@ from .io import (
     validate_zip_bytes,
 )
 from .provenance import SourceManifest, build_source_manifest, verify_payload_digest
+from .replay import InMemoryReplayStore, ReplayStore
 from .webhooks import (
     HMACWebhookVerifier,
     VerifiedWebhook,
@@ -19,6 +20,8 @@ __all__ = [
     "DEFAULT_ALLOWED_SOURCE_HOSTS",
     "DownloadPolicy",
     "HMACWebhookVerifier",
+    "InMemoryReplayStore",
+    "ReplayStore",
     "SourceManifest",
     "SourceSecurityError",
     "VerifiedWebhook",
