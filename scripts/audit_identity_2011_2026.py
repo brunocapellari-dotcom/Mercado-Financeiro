@@ -33,11 +33,6 @@ COTAHIST_URL = "https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_A{year
 META_URL = "https://sistemaswebb3-listados.b3.com.br/isinProxy/IsinCall/GetTextDownload/"
 FILE_URL = "https://sistemaswebb3-listados.b3.com.br/isinProxy/IsinCall/GetFileDownload/{token}"
 
-# This older official B3 file id was observed in public client code dated 2022-01-24.
-# It is useful corroborating static-identity evidence when the B3 endpoint still serves
-# it, but B3 currently may return an empty body. A dead archival URL must not turn an
-# otherwise valid identity audit into an infrastructure false negative: current B3 +
-# CVM evidence continues, while the actual coverage gate remains fail-closed.
 ARCHIVED_B3_FILE_ID = 51780
 ARCHIVE_PUBLICLY_OBSERVED_AT = pd.Timestamp("2022-01-24T17:37:59Z")
 
@@ -72,9 +67,29 @@ def _load_fca(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
         target = root / f"fca_{year}.zip"
         target.write_bytes(_get(FCA_URL.format(year=year)))
         ticker_frame, ticker_audit = audit_fca_ticker_issuer_bridge(target, year)
-        name_frame, name_audit = audit_fca_issuer_name_registry(target, year)
         ticker_frames.append(ticker_frame)
-        name_frames.append(name_frame)
+
+        # The CVM annual materialization can contain a small number of general rows
+        # with no exact represented ledger version. Such rows have no defensible
+        # availability timestamp, so that *vintage* is excluded from the weak name
+        # bridge rather than fabricating a date or aborting stronger identity sources.
+        # The exclusion is explicit in logs and the final identity coverage gate still
+        # fails closed if remaining official evidence is insufficient.
+        try:
+            name_frame, name_audit = audit_fca_issuer_name_registry(target, year)
+        except ValueError as exc:
+            print(
+                "FCA_NAME_VINTAGE_EXCLUDED "
+                + json.dumps({"year": year, "reason": str(exc)}, sort_keys=True)
+            )
+            name_rows = 0
+            name_issuers = 0
+        else:
+            if not name_frame.empty:
+                name_frames.append(name_frame)
+            name_rows = name_audit.name_rows
+            name_issuers = name_audit.unique_issuers
+
         print(
             "FCA_IDENTITY_SOURCE "
             + json.dumps(
@@ -82,12 +97,14 @@ def _load_fca(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
                     "year": year,
                     "ticker_rows": ticker_audit.normalized_rows,
                     "ticker_invalid_rows": ticker_audit.invalid_ticker_rows,
-                    "name_rows": name_audit.name_rows,
-                    "name_issuers": name_audit.unique_issuers,
+                    "name_rows": name_rows,
+                    "name_issuers": name_issuers,
                 },
                 sort_keys=True,
             )
         )
+    if not name_frames:
+        raise RuntimeError("no ledger-linked FCA issuer-name vintages were usable")
     return (
         combine_fca_ticker_issuer_history(ticker_frames),
         combine_fca_issuer_name_history(name_frames),
@@ -119,9 +136,6 @@ def _load_registries() -> tuple[pd.DataFrame, pd.DataFrame, dict[str, object]]:
         "archive_available": False,
     }
     try:
-        # Historical availability is optional evidence. One attempt is enough because
-        # a permanently retired B3 file id must not add minute-long backoff to every
-        # complete-project validation run.
         archive_payload = _get(FILE_URL.format(token=_token(ARCHIVED_B3_FILE_ID)), attempts=1)
     except RuntimeError as exc:
         print(
@@ -204,11 +218,6 @@ def main() -> None:
             path.write_bytes(_get(COTAHIST_URL.format(year=year)))
             quotes, quote_audit = select_regular_share_quotes(read_cotahist(path))
 
-            # Source precedence for static identity:
-            # 1. reported historical CVM ticker interval;
-            # 2. B3 issuer-root evidence fills only unresolved rows;
-            # 3. exact official B3 ISIN evidence may override weaker evidence;
-            # 4. unique CVM company-name evidence fills only still-unresolved rows.
             historical, baseline = build_tradable_universe_pit(
                 quotes,
                 fca_ticker,
