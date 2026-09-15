@@ -28,8 +28,9 @@ DEFAULT_ALLOWED_SOURCE_HOSTS = frozenset(
     }
 )
 
-_SENSITIVE_HEADER_NAMES = frozenset({"authorization", "proxy-authorization", "x-api-key"})
+_SENSITIVE_HEADER_NAMES = frozenset({"authorization", "proxy-authorization", "x-api-key", "access_token"})
 _FORBIDDEN_CALLER_HEADERS = frozenset({"host", "content-length"})
+_ALLOWED_METHODS = frozenset({"GET", "POST"})
 
 
 class SourceSecurityError(ValueError):
@@ -109,20 +110,27 @@ def _validated_headers(headers: Mapping[str, str] | None) -> dict[str, str]:
     return result
 
 
-def download_https(
+def request_https(
     url: str,
     policy: DownloadPolicy | None = None,
     *,
+    method: str = "GET",
     headers: Mapping[str, str] | None = None,
+    body: bytes | None = None,
 ) -> bytes:
-    """Download one allowlisted HTTPS object with bounded resource use.
+    """Perform a bounded allowlisted HTTPS GET/POST request.
 
-    Optional authentication headers remain in memory only. When any sensitive
-    credential header is present, redirects are restricted to the original host
-    to prevent credential forwarding to another allowlisted service.
+    Sensitive authentication headers stay in memory and are never logged by this
+    helper. Authenticated redirects are restricted to the original host so a
+    credential cannot be forwarded to a different allowlisted service.
     """
 
     policy = policy or DownloadPolicy()
+    method = method.upper().strip()
+    if method not in _ALLOWED_METHODS:
+        raise SourceSecurityError(f"HTTP method not permitted for source ingestion: {method}")
+    if method == "GET" and body is not None:
+        raise SourceSecurityError("GET source requests may not contain a body")
     validate_source_url(url, policy.allowed_hosts)
     parsed = urlsplit(url)
     original_host = (parsed.hostname or "").lower().rstrip(".")
@@ -136,7 +144,7 @@ def download_https(
         )
     )
     request_headers = {"User-Agent": policy.user_agent, **caller_headers}
-    request = Request(url, headers=request_headers)
+    request = Request(url, data=body, headers=request_headers, method=method)
     with opener.open(request, timeout=policy.timeout_seconds) as response:
         final_url = response.geturl()
         validate_source_url(final_url, policy.allowed_hosts)
@@ -156,6 +164,15 @@ def download_https(
             f"source response exceeds max_bytes: > {policy.max_bytes}"
         )
     return data
+
+
+def download_https(
+    url: str,
+    policy: DownloadPolicy | None = None,
+    *,
+    headers: Mapping[str, str] | None = None,
+) -> bytes:
+    return request_https(url, policy, method="GET", headers=headers)
 
 
 def _member_is_symlink(info: zipfile.ZipInfo) -> bool:
