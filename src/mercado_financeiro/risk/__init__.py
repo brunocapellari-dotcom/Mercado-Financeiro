@@ -5,10 +5,20 @@ from .engine import (
     RiskDecision,
     RiskLimits,
 )
+from .portfolio import (
+    DeterministicPortfolioRiskEngine,
+    PortfolioRiskDecision,
+    PortfolioRiskLimits,
+    PortfolioRiskSnapshot,
+)
 
 __all__ = [
+    "DeterministicPortfolioRiskEngine",
     "DeterministicRiskEngine",
     "OrderIntent",
+    "PortfolioRiskDecision",
+    "PortfolioRiskLimits",
+    "PortfolioRiskSnapshot",
     "RiskContext",
     "RiskDecision",
     "RiskLimits",
