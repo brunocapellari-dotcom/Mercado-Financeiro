@@ -33,6 +33,7 @@ from .cvm import (
     SnapshotAudit,
     audit_dfp_composition_capital,
     audit_fre_capital_social,
+    audit_fre_treasury_last_exercise,
     available_asof,
 )
 from .fca import (
@@ -63,7 +64,14 @@ from .market_cap import (
     resolve_security_issuer_asof,
 )
 from .security_master import build_security_master_scd2, validate_security_master_scd2
-from .shares import normalize_dfp_shares_outstanding, shares_outstanding_asof
+from .shares import (
+    combine_share_histories,
+    normalize_dfp_shares_outstanding,
+    normalize_fre_issued_shares,
+    normalize_fre_treasury_shares,
+    reconcile_fre_issued_and_treasury,
+    shares_outstanding_asof,
+)
 from .survivorship import coverage_audit
 from .universe import (
     IdentityPolicy,
@@ -100,6 +108,7 @@ __all__ = [
     "audit_fca_issuer_name_registry",
     "audit_fca_ticker_issuer_bridge",
     "audit_fre_capital_social",
+    "audit_fre_treasury_last_exercise",
     "available_asof",
     "build_security_master_scd2",
     "build_tradable_universe_pit",
@@ -108,6 +117,7 @@ __all__ = [
     "combine_b3_isin_registries",
     "combine_fca_issuer_name_history",
     "combine_fca_ticker_issuer_history",
+    "combine_share_histories",
     "compute_market_cap_asof",
     "compute_total_returns",
     "coverage_audit",
@@ -124,8 +134,11 @@ __all__ = [
     "normalize_corporate_actions",
     "normalize_dfp_shares_outstanding",
     "normalize_fca_share_ticker",
+    "normalize_fre_issued_shares",
+    "normalize_fre_treasury_shares",
     "parse_b3_emissor_zip",
     "parse_b3_isin_registry_zip",
+    "reconcile_fre_issued_and_treasury",
     "resolve_b3_emissor_identity",
     "resolve_fca_identity_asof",
     "resolve_fca_name_identity",
