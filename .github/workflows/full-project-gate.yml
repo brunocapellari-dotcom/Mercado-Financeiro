@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: full-project-v2-${{ github.workflow }}-${{ github.ref }}
+  group: full-project-v3-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -36,7 +36,7 @@ jobs:
       - name: Install patched tooling and complete project
         run: |
           python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
-          pip install -e '.[test]'
+          pip install -e '.[test,validation]'
           pip install pip-audit bandit
       - name: Compile every Python source, script and test
         run: python -m compileall -q src scripts tests
@@ -69,6 +69,48 @@ jobs:
           pip install -e '.[test]'
       - name: Audit historical identity 2011-2026 against official B3 and CVM sources
         run: python scripts/audit_identity_2011_2026.py
+
+  share-history-source-integration:
+    name: share-history-source-integration
+    if: always()
+    needs: deterministic
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install complete project
+        run: |
+          python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+          pip install -e '.[test]'
+      - name: Audit historical FRE share evidence 2011-2026
+        run: python scripts/audit_share_history_2011_2026.py
+
+  b3-company-events-source-integration:
+    name: b3-company-events-source-integration
+    if: always()
+    needs: deterministic
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install complete project
+        run: |
+          python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+          pip install -e '.[test]'
+      - name: Audit official B3 company event source
+        run: python scripts/audit_b3_company_events_live.py
 
   source-diagnostic-regression:
     name: source-diagnostic-regression
@@ -172,6 +214,8 @@ jobs:
     needs:
       - deterministic
       - identity-source-integration
+      - share-history-source-integration
+      - b3-company-events-source-integration
       - source-diagnostic-regression
       - cvm-pit-source-integration
       - bvbg-source-integration
@@ -183,6 +227,8 @@ jobs:
         env:
           DETERMINISTIC: ${{ needs.deterministic.result }}
           IDENTITY: ${{ needs.identity-source-integration.result }}
+          SHARE_HISTORY: ${{ needs.share-history-source-integration.result }}
+          B3_EVENTS: ${{ needs.b3-company-events-source-integration.result }}
           SOURCE_DIAGNOSTICS: ${{ needs.source-diagnostic-regression.result }}
           CVM_PIT: ${{ needs.cvm-pit-source-integration.result }}
           BVBG: ${{ needs.bvbg-source-integration.result }}
@@ -190,6 +236,8 @@ jobs:
         run: |
           test "$DETERMINISTIC" = success
           test "$IDENTITY" = success
+          test "$SHARE_HISTORY" = success
+          test "$B3_EVENTS" = success
           test "$SOURCE_DIAGNOSTICS" = success
           test "$CVM_PIT" = success
           test "$BVBG" = success
