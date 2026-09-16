@@ -23,6 +23,10 @@ from .feature_contract import (
 )
 from .features import FeatureMartAudit, build_price_features_pit, point_in_time_asof_join
 from .freshness import assert_feature_freshness
+from .independent_validation import (
+    IndependentMultipleComparisonResult,
+    independent_spa_mcs_validation,
+)
 from .purged_cv import PurgedWalkForwardFold, purged_walk_forward_splits
 from .tournament import (
     PerformanceMetrics,
@@ -54,6 +58,7 @@ __all__ = [
     "FeatureMartAudit",
     "FeatureSchema",
     "FeatureSnapshotManifest",
+    "IndependentMultipleComparisonResult",
     "InMemoryExperimentStore",
     "PerformanceMetrics",
     "PurgedWalkForwardFold",
@@ -73,6 +78,7 @@ __all__ = [
     "deflated_sharpe_ratio",
     "equal_weight",
     "evaluate_tournament_readiness",
+    "independent_spa_mcs_validation",
     "inverse_volatility_weight",
     "market_cap_weight",
     "performance_metrics",
