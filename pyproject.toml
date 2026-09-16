@@ -18,6 +18,9 @@ test = [
     "hypothesis>=6.140",
     "pytest>=8",
 ]
+validation = [
+    "arch>=8,<9",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
