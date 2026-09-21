@@ -19,7 +19,7 @@ def test_gate_plan_preserves_whole_project_boundaries():
     full = build_gate_plan("full", "python-test")
 
     assert len(deterministic) == 9
-    assert len(sources) == 13
+    assert len(sources) == 14
     assert full == deterministic + sources
     assert all(command.argv[0] == "python-test" for command in full)
     assert not any(command.network_required for command in deterministic)
@@ -34,6 +34,7 @@ def test_gate_plan_preserves_whole_project_boundaries():
     assert "dependency-audit" in names
     assert "historical-identity-2011-2026" in names
     assert "cvm-pit-history" in names
+    assert "cvm-fund-daily" in names
     assert "official-macro-sources" in names
 
 
