@@ -83,6 +83,8 @@ __all__ = [
 ]
 
 from .source_contracts import (
+    B3_LENDING_OPEN_POSITION_CONTRACT,
+    B3_LOAN_BALANCE_CONTRACT,
     BCB_CONTRACT,
     BVBG028_CONTRACT,
     CORPORATE_DATA_CONTRACT,
@@ -99,6 +101,8 @@ from .source_contracts import (
 )
 
 __all__ += [
+    "B3_LENDING_OPEN_POSITION_CONTRACT",
+    "B3_LOAN_BALANCE_CONTRACT",
     "BCB_CONTRACT",
     "BVBG028_CONTRACT",
     "CORPORATE_DATA_CONTRACT",
