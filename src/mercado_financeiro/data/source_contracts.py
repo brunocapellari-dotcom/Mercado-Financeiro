@@ -292,10 +292,10 @@ CVM_FUND_HOLDINGS_CONTRACT = FinancialSourceContract(
     availability_column="available_from",
 )
 
-CVM_FUND_EQUITY_AGGREGATE_CONTRACT = FinancialSourceContract(
-    name="CVM_FUND_EQUITY_AGGREGATE",
+CVM_FUND_CODED_ASSET_AGGREGATE_CONTRACT = FinancialSourceContract(
+    name="CVM_FUND_CODED_ASSET_AGGREGATE",
     quality=DataQualityContract(
-        name="CVM_FUND_EQUITY_AGGREGATE",
+        name="CVM_FUND_CODED_ASSET_AGGREGATE",
         required_columns=(
             "reference_date",
             "asset_code",
@@ -362,7 +362,7 @@ SOURCE_CONTRACTS: Mapping[str, FinancialSourceContract] = {
         CVM_FUNDAMENTALS_CONTRACT,
         CVM_FUND_DAILY_CONTRACT,
         CVM_FUND_HOLDINGS_CONTRACT,
-        CVM_FUND_EQUITY_AGGREGATE_CONTRACT,
+        CVM_FUND_CODED_ASSET_AGGREGATE_CONTRACT,
         CORPORATE_DATA_CONTRACT,
         BCB_CONTRACT,
         NEFIN_CONTRACT,
