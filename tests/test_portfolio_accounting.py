@@ -93,3 +93,22 @@ def test_mark_to_market_requires_every_open_position_mark():
 
     with pytest.raises(ValueError, match="missing marks"):
         ledger.mark_to_market({})
+
+
+def test_realized_pnl_survives_full_position_close():
+    ledger = PortfolioAccountingLedger(initial_cash=Decimal("1000"))
+    ledger.apply_fill(
+        fill_id="open",
+        instrument="TEST3",
+        signed_quantity=Decimal("10"),
+        price=Decimal("10"),
+    )
+    ledger.apply_fill(
+        fill_id="close",
+        instrument="TEST3",
+        signed_quantity=Decimal("-10"),
+        price=Decimal("12"),
+    )
+    snapshot = ledger.snapshot()
+    assert snapshot.positions == {}
+    assert snapshot.realized_pnl == Decimal("20")
