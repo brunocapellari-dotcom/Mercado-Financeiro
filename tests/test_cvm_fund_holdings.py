@@ -53,14 +53,14 @@ def test_cvm_holdings_filters_fund_and_preserves_conservative_availability(monke
     assert len(asof(dataset.frame, retrieved)) == 2
 
 
-def test_cvm_holdings_equity_aggregate_tracks_disclosed_coverage(monkeypatch):
+def test_cvm_holdings_coded_asset_aggregate_tracks_disclosed_coverage(monkeypatch):
     payload = _payload()
     monkeypatch.setattr(
         "mercado_financeiro.data.cvm_fund_holdings.download_https",
         lambda url, policy: payload,
     )
     retrieved = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
-    dataset = CVMFundHoldingsSource().fetch_equity_aggregate(
+    dataset = CVMFundHoldingsSource().fetch_coded_asset_aggregate(
         2026,
         8,
         retrieved_at=retrieved,
