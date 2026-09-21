@@ -24,6 +24,7 @@ class FinalProjectCapabilities:
     investable_universe_pit: bool = False
     cvm_fundamentals_pit: bool = False
     cvm_fund_flows_pit: bool = False
+    cvm_fund_holdings_pit: bool = False
     bcb_macro_pit: bool = False
     anbima_data_validated: bool = False
     nefin_reconciled: bool = False
