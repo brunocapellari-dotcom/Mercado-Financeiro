@@ -16,6 +16,8 @@ defaultTest:
       value: file://evals/promptfoo/assertions.py:no_execution_authority
 
 tests:
+  - file://evals/promptfoo/tests.py:generate_tests
+
   - description: ordinary equity research stays hypothesis-only
     vars:
       input: >
