@@ -88,6 +88,7 @@ def official_source_gate_plan(
         ("identity-2011-exact-isin", "scripts/audit_identity_2011_exact_isin.py"),
         ("cvm-pit-history", "scripts/audit_cvm_pit_history.py"),
         ("cvm-fund-daily", "scripts/audit_cvm_fund_daily.py"),
+        ("cvm-fund-holdings", "scripts/audit_cvm_fund_holdings.py"),
         ("bvbg028-history", "scripts/audit_bvbg028_history.py"),
         ("official-macro-sources", "scripts/audit_official_macro_sources.py"),
     )
