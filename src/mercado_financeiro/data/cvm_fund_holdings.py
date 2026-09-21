@@ -242,7 +242,7 @@ class CVMFundHoldingsSource:
                     continue
                 reference = pd.to_datetime(row.get("DT_COMPTC"), errors="coerce", utc=True)
                 if pd.isna(reference):
-                    raise ValueError("CVM CDA equity row contains invalid DT_COMPTC")
+                    raise ValueError("CVM CDA coded-asset row contains invalid DT_COMPTC")
                 quantity = _number(row.get("QT_POS_FINAL"))
                 market_value = _number(
                     _first(row, "VL_MERC_POS_FINAL", "VL_MERCADO", "VL_MERC_POSICAO")
@@ -272,7 +272,7 @@ class CVMFundHoldingsSource:
                 "coverage_status": (
                     "public_detail_only_confidential_positions_exist"
                     if confidential_present
-                    else "confidential_positions_present"
+                    else "public_detail_only"
                 ),
             }
             for item in aggregate.values()
