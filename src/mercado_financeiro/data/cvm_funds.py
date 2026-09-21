@@ -8,6 +8,7 @@ import zipfile
 import pandas as pd
 
 from mercado_financeiro.security.io import DownloadPolicy, download_https, validate_zip_bytes
+from .acquisition import AcquisitionContext
 from .historical import HistoricalDataset, VintageMode, require_pit_columns
 
 
@@ -41,12 +42,18 @@ class CVMFundDailySource:
     name = "CVM"
     base_url = "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_{year}{month:02d}.zip"
 
-    def __init__(self, *, policy: DownloadPolicy | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        policy: DownloadPolicy | None = None,
+        acquisition: AcquisitionContext | None = None,
+    ) -> None:
         self._policy = policy or DownloadPolicy(
             allowed_hosts=frozenset({"dados.cvm.gov.br"}),
             timeout_seconds=90.0,
             max_bytes=100_000_000,
         )
+        self._acquisition = acquisition or AcquisitionContext()
 
     def fetch_month(self, year: int, month: int, *, retrieved_at: datetime | None = None) -> HistoricalDataset:
         if year < 2000 or not 1 <= month <= 12:
@@ -56,6 +63,16 @@ class CVMFundDailySource:
         retrieved = retrieved_at or datetime.now(timezone.utc)
         if retrieved.tzinfo is None or retrieved.utcoffset() is None:
             raise ValueError("retrieved_at must be timezone-aware")
+        receipt_id = self._acquisition.preserve(
+            payload,
+            source_name=self.name,
+            source_url=url,
+            retrieved_at=retrieved,
+            upstream_id=f"inf_diario_fi_{year}{month:02d}.zip",
+            parser_version="cvm-fund-daily-v1",
+            reference_time=f"{year}-{month:02d}-01",
+            content_type="application/zip",
+        )
         raw = _read_zip_csvs(payload)
         out = pd.DataFrame()
         out["fund_id"] = _first(raw, "CNPJ_FUNDO_CLASSE", "CNPJ_FUNDO").astype(str).str.strip()
@@ -86,6 +103,7 @@ class CVMFundDailySource:
             sha256=sha256(payload).hexdigest(),
             vintage_mode=VintageMode.CONSERVATIVE_RETRIEVAL,
             frame=out.sort_values(["reference_date", "fund_id"]).reset_index(drop=True),
+            raw_receipt_id=receipt_id,
         )
 
     def healthcheck(self) -> bool:
