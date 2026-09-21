@@ -26,7 +26,14 @@ class FinalProjectCapabilities:
     anbima_data_validated: bool = False
     nefin_reconciled: bool = False
     news_pit: bool = False
+    financial_source_contracts_validated: bool = False
     feature_mart_pit: bool = False
+    research_agent_governance_validated: bool = False
+    agent_observability_validated: bool = False
+    llm_regression_redteam_validated: bool = False
+    deterministic_replay_validated: bool = False
+    portfolio_accounting_validated: bool = False
+    external_engine_parity_validated: bool = False
     transaction_cost_model_validated: bool = False
     tournament_walk_forward_oos: bool = False
     model_lineage_registry: bool = False
