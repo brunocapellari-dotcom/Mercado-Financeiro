@@ -44,7 +44,7 @@ SOURCE_REGISTRY: dict[str, SourceContract] = {
     "CVM": SourceContract(
         name="CVM",
         tier=SourceTier.PRIMARY_OFFICIAL,
-        purpose="issuer filings, fundamentals and filing vintages",
+        purpose="issuer filings, fundamentals, fund flows/portfolios and filing vintages",
         hosts=frozenset({"dados.cvm.gov.br"}),
         default_vintage_mode=VintageMode.PUBLICATION_GATED,
         live_capable=False,
