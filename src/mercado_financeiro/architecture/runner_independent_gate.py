@@ -24,15 +24,48 @@ class GateCommandResult:
     network_required: bool
 
 
-def deterministic_gate_plan(python_executable: str = sys.executable) -> tuple[GateCommand, ...]:
+def deterministic_gate_plan(
+    python_executable: str = sys.executable,
+) -> tuple[GateCommand, ...]:
     py = python_executable
     return (
         GateCommand(
             "compileall",
-            (py, "-m", "compileall", "-q", "src", "scripts", "tests"),
+            (py, "-m", "compileall", "-q", "src", "scripts", "tests", "evals"),
         ),
         GateCommand("repository-security-scan", (py, "scripts/security_scan.py")),
-        GateCommand("pytest-complete", (py, "-m", "pytest")),
+        GateCommand(
+            "ruff-high-signal",
+            (py, "-m", "ruff", "check", "src", "scripts", "tests", "evals"),
+        ),
+        GateCommand(
+            "mypy-core",
+            (py, "-m", "mypy", "src/mercado_financeiro"),
+        ),
+        GateCommand(
+            "pytest-complete-seed-a",
+            (
+                py,
+                "-m",
+                "pytest",
+                "--randomly-seed=20260921",
+                "--timeout=120",
+                "--cov=mercado_financeiro",
+                "--cov-branch",
+                "--cov-report=term-missing",
+            ),
+        ),
+        GateCommand(
+            "pytest-complete-seed-b",
+            (
+                py,
+                "-m",
+                "pytest",
+                "--randomly-seed=8675309",
+                "--timeout=120",
+            ),
+        ),
+        GateCommand("agent-stack-compatibility", (py, "scripts/check_agent_stack.py")),
         GateCommand("bandit-source", (py, "-m", "bandit", "-r", "src", "-ll")),
         GateCommand("dependency-audit", (py, "-m", "pip_audit")),
     )
