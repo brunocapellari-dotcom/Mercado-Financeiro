@@ -15,3 +15,17 @@ __all__ = [
     "RuntimeMode",
     "TradingKernel",
 ]
+
+from .replay import (
+    DeterministicReplayEngine,
+    ReplayReport,
+    canonical_event_order,
+    event_stream_digest,
+)
+
+__all__ += [
+    "DeterministicReplayEngine",
+    "ReplayReport",
+    "canonical_event_order",
+    "event_stream_digest",
+]
