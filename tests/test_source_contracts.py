@@ -113,7 +113,7 @@ def test_cvm_fund_daily_contract_rejects_future_restatement_in_historical_asof()
     assert current.passed
 
 
-def test_cvm_equity_holdings_contract_marks_future_snapshot_as_unavailable():
+def test_cvm_coded_asset_holdings_contract_marks_future_snapshot_as_unavailable():
     frame = pd.DataFrame(
         [
             {
