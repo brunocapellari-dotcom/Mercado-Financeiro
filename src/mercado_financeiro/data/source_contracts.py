@@ -69,6 +69,15 @@ class FinancialSourceContract:
                     violations.append(f"invalid_information_timestamps={invalid}")
                 if early:
                     violations.append(f"availability_before_reference={early}")
+                if as_of is not None:
+                    cutoff = pd.Timestamp(as_of)
+                    if cutoff.tzinfo is None or cutoff.utcoffset() is None:
+                        raise ValueError("as_of must be timezone-aware")
+                    cutoff = cutoff.tz_convert("UTC")
+                    future = int((available.notna() & (available > cutoff)).sum())
+                    metrics["future_information_rows"] = float(future)
+                    if future:
+                        violations.append(f"future_information_rows={future}")
 
         return DataQualityResult(
             passed=not violations,
@@ -211,7 +220,12 @@ NEFIN_CONTRACT = FinancialSourceContract(
     availability_column="available_from",
 )
 
-CORPORATE_DATA_CONTRACT = CVM_FUNDAMENTALS_CONTRACT
+CORPORATE_DATA_CONTRACT = FinancialSourceContract(
+    name="CORPORATE_DATA",
+    quality=CVM_FUNDAMENTALS_CONTRACT.quality,
+    reference_column="reference_date",
+    availability_column="available_from",
+)
 
 MARKET_SERIES_CONTRACT = FinancialSourceContract(
     name="MARKET_SERIES",
@@ -243,6 +257,7 @@ SOURCE_CONTRACTS: Mapping[str, FinancialSourceContract] = {
         COTAHIST_CONTRACT,
         BVBG028_CONTRACT,
         CVM_FUNDAMENTALS_CONTRACT,
+        CORPORATE_DATA_CONTRACT,
         BCB_CONTRACT,
         NEFIN_CONTRACT,
         MARKET_SERIES_CONTRACT,
