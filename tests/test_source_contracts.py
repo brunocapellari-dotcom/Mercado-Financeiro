@@ -4,6 +4,8 @@ from mercado_financeiro.data.source_contracts import (
     COTAHIST_CONTRACT,
     CVM_FUNDAMENTALS_CONTRACT,
     CVM_FUND_DAILY_CONTRACT,
+    CVM_FUND_HOLDINGS_CONTRACT,
+    CVM_FUND_EQUITY_AGGREGATE_CONTRACT,
     get_financial_source_contract,
 )
 
@@ -109,3 +111,61 @@ def test_cvm_fund_daily_contract_rejects_future_restatement_in_historical_asof()
         as_of=pd.Timestamp("2026-09-21T12:00:00Z"),
     )
     assert current.passed
+
+
+def test_cvm_equity_holdings_contract_marks_future_snapshot_as_unavailable():
+    frame = pd.DataFrame(
+        [
+            {
+                "reference_date": "2026-08-31T00:00:00Z",
+                "asset_code": "PETR4",
+                "quantity": 15.0,
+                "market_value": 375.0,
+                "fund_count": 2,
+                "coverage_status": "public_detail_only_confidential_positions_exist",
+                "available_from": "2026-09-21T12:00:00Z",
+                "source_retrieved_at": "2026-09-21T12:00:00Z",
+                "source_sha256": "a" * 64,
+            }
+        ]
+    )
+    result = CVM_FUND_EQUITY_AGGREGATE_CONTRACT.evaluate(
+        frame,
+        as_of=pd.Timestamp("2026-09-20T23:59:59Z"),
+    )
+    assert not result.passed
+    assert "future_information_rows=1" in result.violations
+
+
+def test_cvm_row_holdings_contract_does_not_invent_unique_grain():
+    frame = pd.DataFrame(
+        [
+            {
+                "fund_id": "00000000000100",
+                "reference_date": "2026-08-31T00:00:00Z",
+                "block": "BLC_4",
+                "asset_code": "PETR4",
+                "source_member": "cda_fi_BLC_4_202608.csv",
+                "public_detail_only": True,
+                "available_from": "2026-09-21T12:00:00Z",
+                "source_retrieved_at": "2026-09-21T12:00:00Z",
+                "source_sha256": "b" * 64,
+            },
+            {
+                "fund_id": "00000000000100",
+                "reference_date": "2026-08-31T00:00:00Z",
+                "block": "BLC_4",
+                "asset_code": "PETR4",
+                "source_member": "cda_fi_BLC_4_202608.csv",
+                "public_detail_only": True,
+                "available_from": "2026-09-21T12:00:00Z",
+                "source_retrieved_at": "2026-09-21T12:00:00Z",
+                "source_sha256": "b" * 64,
+            },
+        ]
+    )
+    result = CVM_FUND_HOLDINGS_CONTRACT.evaluate(
+        frame,
+        as_of=pd.Timestamp("2026-09-21T12:00:00Z"),
+    )
+    assert result.passed
