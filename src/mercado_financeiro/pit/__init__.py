@@ -57,6 +57,7 @@ from .identity_gate import (
     assert_identity_gate,
     evaluate_identity_gate,
 )
+from .lending_identity import LendingIdentityAudit, resolve_lending_identity_asof
 from .market_cap import (
     MarketCapResult,
     classify_share_class,
@@ -98,6 +99,7 @@ __all__ = [
     "IdentityGatePolicy",
     "IdentityGateResult",
     "IdentityPolicy",
+    "LendingIdentityAudit",
     "MarketCapResult",
     "SnapshotAudit",
     "TotalReturnAudit",
@@ -142,6 +144,7 @@ __all__ = [
     "resolve_b3_emissor_identity",
     "resolve_fca_identity_asof",
     "resolve_fca_name_identity",
+    "resolve_lending_identity_asof",
     "resolve_security_issuer_asof",
     "shares_outstanding_asof",
     "ticker_issuer_code",
