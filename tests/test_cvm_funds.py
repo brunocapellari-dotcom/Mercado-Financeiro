@@ -4,7 +4,8 @@ import zipfile
 
 import pandas as pd
 
-from mercado_financeiro.data import CVMFundDailySource, VintageMode, asof
+from mercado_financeiro.data import AcquisitionContext, CVMFundDailySource, VintageMode, asof
+from mercado_financeiro.security import RawEvidenceVault
 
 
 def _payload() -> bytes:
@@ -36,3 +37,27 @@ def test_cvm_fund_daily_is_conservative_pit_not_historical_backfill(monkeypatch)
     assert dataset.frame.loc[0, "outflows"] == 20.0
     assert asof(dataset.frame, "2026-09-20T23:59:59Z").empty
     assert len(asof(dataset.frame, retrieved)) == 1
+
+
+def test_cvm_fund_daily_preserves_raw_evidence_when_vault_is_configured(monkeypatch, tmp_path):
+    payload = _payload()
+    monkeypatch.setattr(
+        "mercado_financeiro.data.cvm_funds.download_https",
+        lambda url, policy: payload,
+    )
+    retrieved = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
+    vault = RawEvidenceVault(tmp_path / "raw")
+    source = CVMFundDailySource(
+        acquisition=AcquisitionContext(
+            raw_vault=vault,
+            run_id="cvm-daily-test",
+            commit_sha="abcdef1",
+        )
+    )
+    dataset = source.fetch_month(2026, 9, retrieved_at=retrieved)
+
+    assert dataset.raw_receipt_id is not None
+    assert vault.read_payload(dataset.sha256) == payload
+    receipt = vault.read_receipt(dataset.raw_receipt_id)
+    assert '"upstream_id":"inf_diario_fi_202609.zip"' in receipt
+    assert '"run_id":"cvm-daily-test"' in receipt
