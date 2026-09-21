@@ -156,6 +156,8 @@ jobs:
           pip install -e '.[test]'
       - name: Audit early middle and recent CVM PIT capital vintages
         run: python scripts/audit_cvm_pit_history.py
+      - name: Audit current official CVM fund daily source
+        run: python scripts/audit_cvm_fund_daily.py
 
   bvbg-source-integration:
     name: bvbg-source-integration
