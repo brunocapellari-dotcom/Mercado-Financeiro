@@ -21,6 +21,10 @@ test = [
 validation = [
     "arch>=8,<9",
 ]
+agents = [
+    "pydantic-ai-harness[dynamic-workflow]>=0.32,<0.33",
+    "pydantic-evals>=2.46,<2.47",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
