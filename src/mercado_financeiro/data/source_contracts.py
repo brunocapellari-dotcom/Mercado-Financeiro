@@ -261,6 +261,68 @@ CVM_FUND_DAILY_CONTRACT = FinancialSourceContract(
     },
 )
 
+
+CVM_FUND_HOLDINGS_CONTRACT = FinancialSourceContract(
+    name="CVM_FUND_HOLDINGS",
+    quality=DataQualityContract(
+        name="CVM_FUND_HOLDINGS",
+        required_columns=(
+            "fund_id",
+            "reference_date",
+            "block",
+            "asset_code",
+            "source_member",
+            "public_detail_only",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+        not_null_columns=(
+            "fund_id",
+            "reference_date",
+            "block",
+            "source_member",
+            "public_detail_only",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+    ),
+    reference_column="reference_date",
+    availability_column="available_from",
+)
+
+CVM_FUND_EQUITY_AGGREGATE_CONTRACT = FinancialSourceContract(
+    name="CVM_FUND_EQUITY_AGGREGATE",
+    quality=DataQualityContract(
+        name="CVM_FUND_EQUITY_AGGREGATE",
+        required_columns=(
+            "reference_date",
+            "asset_code",
+            "quantity",
+            "market_value",
+            "fund_count",
+            "coverage_status",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+        not_null_columns=(
+            "reference_date",
+            "asset_code",
+            "fund_count",
+            "coverage_status",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+        unique_key=("reference_date", "asset_code"),
+    ),
+    reference_column="reference_date",
+    availability_column="available_from",
+    numeric_ranges={"fund_count": (0.0, None)},
+)
+
 CORPORATE_DATA_CONTRACT = FinancialSourceContract(
     name="CORPORATE_DATA",
     quality=CVM_FUNDAMENTALS_CONTRACT.quality,
@@ -299,6 +361,8 @@ SOURCE_CONTRACTS: Mapping[str, FinancialSourceContract] = {
         BVBG028_CONTRACT,
         CVM_FUNDAMENTALS_CONTRACT,
         CVM_FUND_DAILY_CONTRACT,
+        CVM_FUND_HOLDINGS_CONTRACT,
+        CVM_FUND_EQUITY_AGGREGATE_CONTRACT,
         CORPORATE_DATA_CONTRACT,
         BCB_CONTRACT,
         NEFIN_CONTRACT,
