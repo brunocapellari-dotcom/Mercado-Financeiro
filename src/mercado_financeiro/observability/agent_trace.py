@@ -83,3 +83,26 @@ def otel_attributes(trace: AgentTrace) -> Mapping[str, str | int | float | bool]
     }
     attrs.update({key: value for key, value in optional.items() if value is not None})
     return attrs
+
+
+class OpenTelemetryAgentTraceSink:
+    """Backend-neutral sink for an already configured OpenTelemetry tracer.
+
+    Phoenix can be one OTLP/OpenTelemetry backend, but the application contract
+    does not depend on Phoenix. No prompt, tool payload, or raw result is emitted
+    by this sink.
+    """
+
+    def __init__(self, tracer: object) -> None:
+        if not hasattr(tracer, "start_as_current_span"):
+            raise TypeError("tracer must expose start_as_current_span")
+        self._tracer = tracer
+
+    def emit(self, trace: AgentTrace) -> None:
+        starter = getattr(self._tracer, "start_as_current_span")
+        with starter(trace.operation) as span:
+            setter = getattr(span, "set_attribute", None)
+            if setter is None:
+                raise TypeError("OpenTelemetry span must expose set_attribute")
+            for key, value in otel_attributes(trace).items():
+                setter(key, value)
