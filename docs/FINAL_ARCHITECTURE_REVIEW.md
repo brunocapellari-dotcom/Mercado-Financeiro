@@ -2,63 +2,127 @@
 
 ## Regra de desenvolvimento
 
-Este projeto não promove componentes isoladamente. Toda alteração relevante deve terminar no `full-project-gate`, que executa a suíte completa, segurança estática/dependências e integrações oficiais sem secrets. Uma alteração localmente correta não é considerada versão aprovada se o projeto completo não estiver verde.
+O projeto é validado como um sistema único. Alterações relevantes não são promovidas
+por módulo: devem terminar no gate canônico
+`python scripts/run_full_project_gate.py --mode full`.
 
-## Padrões externos revisados e decisão de uso
+GitHub Actions, máquina local, self-hosted runner, Cloud Build ou outro executor
+autorizado podem executar o mesmo contrato. O executor não define correção; o
+repositório define.
+
+Enquanto o gate não for executado no commit corrente, o commit é classificado como
+**não validado**, mesmo quando revisão estática e testes unitários tenham sido escritos.
+
+## Arquitetura financeira
+
+A cadeia obrigatória é:
+
+`DADOS -> INTELIGÊNCIA -> PREVISÃO -> SINAL -> RISCO -> EXECUÇÃO`
+
+Para componentes LLM:
+
+`LLM/RESEARCH -> HIPÓTESE -> VALIDAÇÃO QUANTITATIVA -> SINAL CANDIDATO -> RISK MANAGER -> MOTOR DETERMINÍSTICO`
+
+Nenhum LLM possui credenciais de broker, altera limites, desliga kill switch ou
+submete ordens.
+
+## Gate integral
+
+O gate determinístico executa, em todo o projeto:
+
+- compileall de src/scripts/tests/evals;
+- scan de secrets e arquivos proibidos;
+- Ruff de erros de alta confiança;
+- mypy no core;
+- pytest completo com cobertura e branch coverage;
+- segunda execução completa de pytest com ordem aleatória diferente;
+- compatibilidade real da camada Pydantic AI Harness/Pydantic Evals;
+- Bandit;
+- pip-audit.
+
+O gate de fontes executa todos os audits oficiais B3/CVM/BCB/NEFIN relacionados,
+incluindo identidade 2011–2026, shares, eventos, FCA, COTAHIST, EMISSOR/ISIN,
+CVM PIT, CVM Fundos, BVBG.028 e macro.
+
+A falta de runner não elimina nenhum desses requisitos.
+
+## Ferramentas e padrões externos
 
 ### NautilusTrader
 
-Padrões adotados conceitualmente: common trading kernel, event-driven boundaries, ports/adapters, um mesmo caminho Risk -> Execution entre backtest/paper/shadow/live, reconciliação de startup e tratamento explícito de outcomes ambíguos de transporte. O projeto não depende de NautilusTrader; os contratos locais preservam o domínio B3/PIT existente.
+É benchmark/runtime candidato isolado. Foram absorvidos os padrões úteis de event
+runtime, replay e accounting, mas Risk Manager, PIT, provenance, idempotência e
+reconciliação permanecem internos. Release candidate não recebe capital real.
 
-### QuantConnect LEAN
+### LEAN
 
-Padrões adotados conceitualmente: separar fill, fees, slippage, buying power e settlement da lógica da estratégia. O `DeterministicBrokerageModel` usa parâmetros explícitos e falha fechado quando o calendário de settlement não foi validado. Não são embutidas taxas atuais de broker/B3 sem fonte e vigência auditadas.
+Permanece segunda implementação independente para paridade de estratégias simples.
 
-### Feast
+### Qlib e skfolio
 
-Padrões adotados conceitualmente: point-in-time historical joins e paridade entre features de treinamento e serving. O projeto mantém feature schema versionado, hash do schema, hash do snapshot, parent hashes e cutoff temporal. Não se adiciona Feast como dependência enquanto a infraestrutura local cumprir o contrato necessário.
+Qlib é benchmark externo de pesquisa/ML/fatores. skfolio é benchmark externo de
+otimização de portfólio. Nenhum contorna Tournament ou Risk Manager.
 
-### MLflow / Qlib
+### Pydantic AI Harness
 
-Padrões adotados conceitualmente: experiment/model lineage, artefatos imutáveis, métricas vinculadas à versão e promoção explícita. `ModelManifest` liga modelo a commit, dataset manifest, feature schema, janela de treinamento e cutoff. Aliases apontam para versões imutáveis. Promoção não pode pular stages/gates.
+É camada opcional de agentes atrás de adapter fixado em minor compatível. Planning,
+SubAgents, Memory, SpendLimits, TrajectoryJudge e DynamicWorkflow não definem
+autoridade financeira.
 
-### OpenBB
+### OpenTelemetry / Phoenix / Promptfoo
 
-A arquitetura de providers é útil como referência, porém o projeto já possui `MarketDataProvider`, `HistoricalDataSource` e registro de fontes. Não se adiciona OpenBB apenas para duplicar essa abstração. Um adapter pode ser criado futuramente se uma fonte suportada por OpenBB reduzir manutenção de forma material.
+OpenTelemetry + schema `mf.agent.*` é o contrato de observabilidade. Phoenix é
+backend opcional. Promptfoo e Pydantic Evals compartilham um corpus canônico de
+regressão e cobrem excessive agency, prompt injection, PII e bypass de risco.
 
-## Melhorias incorporadas nesta revisão
+### Data quality
 
-1. Um workflow único `full-project-gate` sem path filters para testar o projeto inteiro.
-2. Matrix Python 3.11/3.12, compile-all, secret/data scan, pytest integral, Bandit e pip-audit.
-3. Integração oficial obrigatória no gate: identidade B3/CVM, BVBG.028 e macro oficial.
-4. Runtime comum event-driven para backtest, paper, shadow e live.
-5. Event bus em memória explicitamente `live_safe=False`.
-6. Brokerage simulation determinística com bid/ask, liquidez, ADV, slippage, impact, fee e buying power.
-7. Settlement fail-closed quando não existe calendário verificado.
-8. Model Registry imutável com lineage completo e promoção fail-closed.
-9. Feature schema/lineage versionados e training-serving parity.
-10. Kill switch lido dentro do Execution Engine, fora da autoridade da estratégia/modelo.
-11. Submission outcome ambíguo não é automaticamente reenviado; exige reconciliation.
-12. Live readiness exige idempotência durável, broker-side client-order dedup, event bus durável, model registry durável, log imutável, startup reconciliation e settlement calendar verificado.
-13. Exact B3 ISIN identity e Historical Identity Gate foram incorporados à mesma linha arquitetural para eliminar branches funcionais divergentes.
+Os contratos financeiros internos são a autoridade. Soda, Pandera e Great
+Expectations não são adicionados enquanto apenas duplicarem esses contratos.
 
-## O que deliberadamente não foi adotado
+### Ibis
 
-- Tool-sprawl: não adicionar Feast, MLflow, Qlib, OpenBB, NautilusTrader e LEAN simultaneamente.
-- Framework de terceiros como fonte canônica de dados: B3/CVM/BCB/ANBIMA e demais fontes oficiais continuam canônicas.
-- Fill/fee/slippage com números presumidos: parâmetros precisam de evidência de vigência.
-- Retry cego de ordem após timeout/erro de transporte.
-- Modelo/LLM com acesso a broker credentials.
-- Mudança de universo histórico, fundamentos, market cap ou vintages sem point-in-time.
+Ibis 12 é aprovado como **candidato de portabilidade de consulta** para a futura
+paridade DuckDB <-> BigQuery. Não entra no core nem substitui o PITSnapshotStore
+antes de um benchmark provar igualdade de row sets, timestamps, tipos e resultados.
 
-## Condição para `main`
+### dlt e Dagster
 
-O branch final só deve ser promovido quando:
+São mantidos como referências futuras. Não entram agora: dlt duplicaria parte da
+ingestão/provenance e Dagster adicionaria uma segunda camada de orquestração antes
+da infraestrutura cloud existir. Reavaliar somente quando reduzirem código total e
+passarem o gate integral.
 
-- o runner do GitHub Actions realmente executar os steps;
-- `full-project-gate` estiver verde;
-- as integrações oficiais necessárias estiverem verdes;
-- nenhum bypass Research -> Broker existir;
-- nenhum gate de PIT/security/risk tiver sido neutralizado para obter aprovação.
+## Dados novos
 
-LIVE continua sendo uma capacidade separada. Código pronto não equivale a autorização para dinheiro real.
+CVM Fundos Informe Diário foi incorporado com semântica conservadora:
+`available_from = data de coleta`. Reapresentações não são retroativamente
+tratadas como conhecidas no passado.
+
+CVM CDA foi promovido a próxima fonte institucional prioritária para composição de
+carteiras, mas não será implementado sem parser validado contra o dicionário e
+política de confidencialidade/reapresentações.
+
+B3 UP2DATA regulatório foi promovido a próxima fonte B3 prioritária para posição e
+resumo de empréstimos de ativos. DataWise fica como upgrade licenciado, não como
+pré-requisito para iniciar sinais de short/crowding.
+
+## Redundância removida
+
+Os workflows duplicados de CI/security/audits foram removidos. Permanecem apenas:
+
+- `full-project-gate.yml` como orquestração do gate integral;
+- `codeql.yml` para análise CodeQL.
+
+## Condição para main
+
+A branch só pode ser promovida quando o commit corrente tiver evidência de:
+
+1. gate determinístico integral verde em Python suportado;
+2. audits oficiais integralmente verdes;
+3. CodeQL/security verdes;
+4. nenhuma regressão PIT;
+5. nenhuma autoridade Research -> Broker;
+6. nenhum gate enfraquecido para conseguir aprovação.
+
+LIVE permanece separado: merge em main não autoriza capital real.
