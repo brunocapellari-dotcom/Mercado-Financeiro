@@ -73,3 +73,29 @@ __all__ = [
     "validate_fundamental_observations",
     "validate_macro_observations",
 ]
+
+from .source_contracts import (
+    BCB_CONTRACT,
+    BVBG028_CONTRACT,
+    CORPORATE_DATA_CONTRACT,
+    COTAHIST_CONTRACT,
+    CVM_FUNDAMENTALS_CONTRACT,
+    MARKET_SERIES_CONTRACT,
+    NEFIN_CONTRACT,
+    SOURCE_CONTRACTS,
+    FinancialSourceContract,
+    get_financial_source_contract,
+)
+
+__all__ += [
+    "BCB_CONTRACT",
+    "BVBG028_CONTRACT",
+    "CORPORATE_DATA_CONTRACT",
+    "COTAHIST_CONTRACT",
+    "CVM_FUNDAMENTALS_CONTRACT",
+    "FinancialSourceContract",
+    "MARKET_SERIES_CONTRACT",
+    "NEFIN_CONTRACT",
+    "SOURCE_CONTRACTS",
+    "get_financial_source_contract",
+]
