@@ -17,3 +17,15 @@ __all__ = [
     "ToolDecision",
     "missing_harness_capabilities",
 ]
+
+from .pydantic_harness import (
+    HarnessCapabilityRegistry,
+    HarnessCompatibilityError,
+    load_pydantic_harness_registry,
+)
+
+__all__ += [
+    "HarnessCapabilityRegistry",
+    "HarnessCompatibilityError",
+    "load_pydantic_harness_registry",
+]
