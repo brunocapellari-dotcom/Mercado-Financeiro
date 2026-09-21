@@ -138,6 +138,103 @@ BVBG028_CONTRACT = FinancialSourceContract(
     ),
 )
 
+
+B3_LENDING_OPEN_POSITION_CONTRACT = FinancialSourceContract(
+    name="B3_LENDING_OPEN_POSITION",
+    quality=DataQualityContract(
+        name="B3_LENDING_OPEN_POSITION",
+        required_columns=(
+            "reference_date",
+            "ticker",
+            "isin",
+            "security_id",
+            "identity_status",
+            "asset",
+            "balance_quantity",
+            "trade_average_price",
+            "price_factor",
+            "balance_value",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+        not_null_columns=(
+            "reference_date",
+            "ticker",
+            "identity_status",
+            "asset",
+            "balance_quantity",
+            "price_factor",
+            "balance_value",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+    ),
+    reference_column="reference_date",
+    availability_column="available_from",
+    numeric_ranges={
+        "balance_quantity": (0.0, None),
+        "trade_average_price": (0.0, None),
+        "price_factor": (0.000000000001, None),
+        "balance_value": (0.0, None),
+    },
+)
+
+B3_LOAN_BALANCE_CONTRACT = FinancialSourceContract(
+    name="B3_LOAN_BALANCE",
+    quality=DataQualityContract(
+        name="B3_LOAN_BALANCE",
+        required_columns=(
+            "reference_date",
+            "ticker",
+            "isin",
+            "security_id",
+            "asset",
+            "market_name",
+            "contracts_day",
+            "shares_day",
+            "contracts_value_day",
+            "donor_min_rate",
+            "donor_average_rate",
+            "donor_max_rate",
+            "taker_min_rate",
+            "taker_average_rate",
+            "taker_max_rate",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+        not_null_columns=(
+            "reference_date",
+            "ticker",
+            "isin",
+            "security_id",
+            "asset",
+            "market_name",
+            "contracts_day",
+            "shares_day",
+            "contracts_value_day",
+            "donor_min_rate",
+            "donor_average_rate",
+            "donor_max_rate",
+            "taker_min_rate",
+            "taker_average_rate",
+            "taker_max_rate",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+    ),
+    reference_column="reference_date",
+    availability_column="available_from",
+    numeric_ranges={
+        "contracts_day": (0.0, None),
+        "shares_day": (0.0, None),
+        "contracts_value_day": (0.0, None),
+    },
+)
+
 CVM_FUNDAMENTALS_CONTRACT = FinancialSourceContract(
     name="CVM_FUNDAMENTALS",
     quality=DataQualityContract(
@@ -359,6 +456,8 @@ SOURCE_CONTRACTS: Mapping[str, FinancialSourceContract] = {
     for contract in (
         COTAHIST_CONTRACT,
         BVBG028_CONTRACT,
+        B3_LENDING_OPEN_POSITION_CONTRACT,
+        B3_LOAN_BALANCE_CONTRACT,
         CVM_FUNDAMENTALS_CONTRACT,
         CVM_FUND_DAILY_CONTRACT,
         CVM_FUND_HOLDINGS_CONTRACT,
