@@ -158,6 +158,8 @@ jobs:
         run: python scripts/audit_cvm_pit_history.py
       - name: Audit current official CVM fund daily source
         run: python scripts/audit_cvm_fund_daily.py
+      - name: Audit official CVM fund holdings source
+        run: python scripts/audit_cvm_fund_holdings.py
 
   bvbg-source-integration:
     name: bvbg-source-integration
