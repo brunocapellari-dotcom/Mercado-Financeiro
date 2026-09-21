@@ -1,6 +1,8 @@
 import pandas as pd
 
 from mercado_financeiro.data.source_contracts import (
+    B3_LENDING_OPEN_POSITION_CONTRACT,
+    B3_LOAN_BALANCE_CONTRACT,
     COTAHIST_CONTRACT,
     CVM_FUNDAMENTALS_CONTRACT,
     CVM_FUND_DAILY_CONTRACT,
@@ -165,6 +167,72 @@ def test_cvm_row_holdings_contract_does_not_invent_unique_grain():
         ]
     )
     result = CVM_FUND_HOLDINGS_CONTRACT.evaluate(
+        frame,
+        as_of=pd.Timestamp("2026-09-21T12:00:00Z"),
+    )
+    assert result.passed
+
+
+def test_b3_lending_open_position_contract_accepts_optional_isin_but_blocks_future_snapshot():
+    frame = pd.DataFrame(
+        [
+            {
+                "reference_date": "2026-09-18T00:00:00Z",
+                "ticker": "BOVA11",
+                "isin": None,
+                "security_id": None,
+                "identity_status": "ticker_requires_resolution",
+                "asset": "BOVA",
+                "balance_quantity": 500.0,
+                "trade_average_price": None,
+                "price_factor": 1.0,
+                "balance_value": 60000.0,
+                "available_from": "2026-09-21T12:00:00Z",
+                "source_retrieved_at": "2026-09-21T12:00:00Z",
+                "source_sha256": "c" * 64,
+            }
+        ]
+    )
+    current = B3_LENDING_OPEN_POSITION_CONTRACT.evaluate(
+        frame,
+        as_of=pd.Timestamp("2026-09-21T12:00:00Z"),
+    )
+    assert current.passed
+
+    historical = B3_LENDING_OPEN_POSITION_CONTRACT.evaluate(
+        frame,
+        as_of=pd.Timestamp("2026-09-20T23:59:59Z"),
+    )
+    assert not historical.passed
+    assert "future_information_rows=1" in historical.violations
+
+
+def test_b3_loan_balance_contract_accepts_official_numeric_shape():
+    frame = pd.DataFrame(
+        [
+            {
+                "reference_date": "2026-09-18T00:00:00Z",
+                "ticker": "PETR4",
+                "isin": "BRPETRACNPR6",
+                "security_id": "ISIN:BRPETRACNPR6",
+                "asset": "PETR",
+                "market_name": "Eletronico D+1",
+                "contracts_day": 12,
+                "shares_day": 12000,
+                "contracts_value_day": 378000.0,
+                "donor_min_rate": 0.01,
+                "donor_average_rate": 0.02,
+                "donor_max_rate": 0.03,
+                "taker_min_rate": 0.015,
+                "taker_average_rate": 0.025,
+                "taker_max_rate": 0.035,
+                "available_from": "2026-09-21T12:00:00Z",
+                "source_retrieved_at": "2026-09-21T12:00:00Z",
+                "source_sha256": "d" * 64,
+            }
+        ]
+    )
+    result = B3_LOAN_BALANCE_CONTRACT.evaluate(
         frame,
         as_of=pd.Timestamp("2026-09-21T12:00:00Z"),
     )
