@@ -5,7 +5,7 @@ from mercado_financeiro.data.source_contracts import (
     CVM_FUNDAMENTALS_CONTRACT,
     CVM_FUND_DAILY_CONTRACT,
     CVM_FUND_HOLDINGS_CONTRACT,
-    CVM_FUND_EQUITY_AGGREGATE_CONTRACT,
+    CVM_FUND_CODED_ASSET_AGGREGATE_CONTRACT,
     get_financial_source_contract,
 )
 
@@ -129,7 +129,7 @@ def test_cvm_equity_holdings_contract_marks_future_snapshot_as_unavailable():
             }
         ]
     )
-    result = CVM_FUND_EQUITY_AGGREGATE_CONTRACT.evaluate(
+    result = CVM_FUND_CODED_ASSET_AGGREGATE_CONTRACT.evaluate(
         frame,
         as_of=pd.Timestamp("2026-09-20T23:59:59Z"),
     )
