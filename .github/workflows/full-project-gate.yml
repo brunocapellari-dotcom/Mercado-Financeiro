@@ -33,21 +33,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install patched tooling and complete project
+      - name: Install complete reproducible validation stack
         run: |
           python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
-          pip install -e '.[test,validation]'
-          pip install pip-audit bandit
-      - name: Compile every Python source, script and test
-        run: python -m compileall -q src scripts tests
-      - name: Repository secret and data guard
-        run: python scripts/security_scan.py
-      - name: Run the complete test suite
-        run: pytest
-      - name: Static security analysis of all source code
-        run: bandit -r src -ll
-      - name: Dependency vulnerability audit
-        run: pip-audit
+          pip install -e '.[test,validation,quality,agents]'
+      - name: Run canonical deterministic whole-project gate
+        run: python scripts/run_full_project_gate.py --mode deterministic
 
   identity-source-integration:
     name: identity-source-integration
