@@ -1,3 +1,4 @@
+from .acquisition import AcquisitionContext
 from .anbima import AnbimaAccessToken, AnbimaFeedSource
 from .bcb import BCBSgsSource
 from .bcb_catalog import BCBSeries, BCBSeriesContract, BCB_SERIES_CATALOG, get_bcb_series_contract
@@ -33,6 +34,7 @@ from .quality import DataQualityContract, DataQualityResult, assert_data_quality
 from .registry import SOURCE_REGISTRY, SourceContract, SourceTier, get_source_contract
 
 __all__ = [
+    "AcquisitionContext",
     "AnbimaAccessToken",
     "AnbimaFeedSource",
     "BCBSgsSource",
