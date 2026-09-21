@@ -48,7 +48,7 @@ def test_cvm_holdings_filters_fund_and_preserves_conservative_availability(monke
     assert dataset.vintage_mode is VintageMode.CONSERVATIVE_RETRIEVAL
     assert set(dataset.frame["asset_code"]) == {"PETR4", "VALE3"}
     assert set(dataset.frame["fund_id"]) == {"00000000000100"}
-    assert dataset.frame["public_detail_only"].all()
+    assert dataset.frame["confidential_positions_present"].all()
     assert asof(dataset.frame, "2026-09-20T23:59:59Z").empty
     assert len(asof(dataset.frame, retrieved)) == 2
 
