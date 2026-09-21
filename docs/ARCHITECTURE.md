@@ -168,3 +168,35 @@ IA pode sugerir, explicar, pesquisar, prever e monitorar. IA não pode:
 5. pular reconciliação;
 6. enviar ordem diretamente ao broker;
 7. promover estratégia para live sem todos os gates aprovados.
+
+
+## Firewall de autoridade: pesquisa, validação, risco e execução
+
+A separação abaixo é obrigatória e não pode ser substituída por confiança em
+prompt, modelo ou framework de agentes:
+
+`LLM/RESEARCH -> HIPÓTESE -> MODELO QUANTITATIVO/VALIDAÇÃO -> SINAL CANDIDATO -> RISK MANAGER -> MOTOR DETERMINÍSTICO`
+
+Regras adicionais:
+
+1. agentes LLM produzem somente artefatos de pesquisa com hipótese, evidências e
+   incerteza; não produzem ordens executáveis;
+2. uma hipótese de LLM não é evidência estatística e não pode ser promovida sem
+   OOS/walk-forward, custos, capacidade e os gates anti-overfitting aplicáveis;
+3. ferramentas de research usam allowlist fail-closed; ferramentas de broker,
+   execution, alteração de limites, kill switch e live são proibidas no agente;
+4. Pydantic AI Harness é uma camada opcional atrás do adapter do projeto; sua API
+   0.x nunca define a autoridade financeira;
+5. traces de agentes usam schema próprio `mf.agent.*` sobre OpenTelemetry.
+   Phoenix pode receber OTLP como backend opcional, sem se tornar fonte de verdade;
+6. Promptfoo e Pydantic Evals consomem o mesmo corpus de regressão. Falhas de
+   excessive agency, prompt injection, PII, evidência inventada ou tentativa de
+   bypass de risco bloqueiam promoção do agente;
+7. contratos de dados de COTAHIST, BVBG, CVM, BCB, NEFIN, dados corporativos e
+   séries de mercado são implementados no core e falham fechado. Soda/GX/Pandera
+   podem servir como benchmark, não como segunda verdade;
+8. replay e accounting do motor são determinísticos e independentes de LLM;
+9. motores externos, inclusive NautilusTrader, entram somente por benchmark/parity
+   adapter. Uma versão RC nunca recebe capital real;
+10. qualquer backend de execução continua subordinado ao Risk Engine,
+    idempotência, reconciliação e kill switch do Mercado Financeiro.
