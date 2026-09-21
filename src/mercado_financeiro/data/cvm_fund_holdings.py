@@ -13,6 +13,7 @@ from collections.abc import Iterable
 import pandas as pd
 
 from mercado_financeiro.security import DownloadPolicy, download_https, validate_zip_bytes
+from .acquisition import AcquisitionContext
 from .historical import HistoricalDataset, VintageMode, require_pit_columns
 
 
@@ -77,12 +78,18 @@ class CVMFundHoldingsSource:
     name = "CVM"
     base_url = "https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_{year}{month:02d}.zip"
 
-    def __init__(self, *, policy: DownloadPolicy | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        policy: DownloadPolicy | None = None,
+        acquisition: AcquisitionContext | None = None,
+    ) -> None:
         self._policy = policy or DownloadPolicy(
             allowed_hosts=frozenset({"dados.cvm.gov.br"}),
             timeout_seconds=180.0,
             max_bytes=400_000_000,
         )
+        self._acquisition = acquisition or AcquisitionContext()
 
     @staticmethod
     def _validated_zip(payload: bytes) -> zipfile.ZipFile:
@@ -101,7 +108,7 @@ class CVMFundHoldingsSource:
         month: int,
         *,
         retrieved_at: datetime | None,
-    ) -> tuple[str, bytes, datetime, str]:
+    ) -> tuple[str, bytes, datetime, str, str | None]:
         if year < 2005 or not 1 <= month <= 12:
             raise ValueError("invalid CDA year/month")
         url = self.base_url.format(year=year, month=month)
@@ -109,7 +116,18 @@ class CVMFundHoldingsSource:
         retrieved = retrieved_at or datetime.now(timezone.utc)
         if retrieved.tzinfo is None or retrieved.utcoffset() is None:
             raise ValueError("retrieved_at must be timezone-aware")
-        return url, payload, retrieved, sha256(payload).hexdigest()
+        digest = sha256(payload).hexdigest()
+        receipt_id = self._acquisition.preserve(
+            payload,
+            source_name=self.name,
+            source_url=url,
+            retrieved_at=retrieved,
+            upstream_id=f"cda_fi_{year}{month:02d}.zip",
+            parser_version="cvm-fund-holdings-v1",
+            reference_time=f"{year}-{month:02d}-01",
+            content_type="application/zip",
+        )
+        return url, payload, retrieved, digest, receipt_id
 
     @staticmethod
     def _iter_rows(
@@ -156,7 +174,7 @@ class CVMFundHoldingsSource:
         if not wanted_blocks:
             raise ValueError("blocks must not be empty")
 
-        url, payload, retrieved, digest = self._download(year, month, retrieved_at=retrieved_at)
+        url, payload, retrieved, digest, receipt_id = self._download(year, month, retrieved_at=retrieved_at)
         rows: list[dict[str, object]] = []
         with self._validated_zip(payload) as archive:
             confidential_present = any("CONFID" in name.upper() for name in archive.namelist())
@@ -221,6 +239,7 @@ class CVMFundHoldingsSource:
             sha256=digest,
             vintage_mode=VintageMode.CONSERVATIVE_RETRIEVAL,
             frame=frame.sort_values(["reference_date", "fund_id", "block", "asset_code"], na_position="last").reset_index(drop=True),
+            raw_receipt_id=receipt_id,
         )
 
     def fetch_coded_asset_aggregate(
@@ -232,7 +251,7 @@ class CVMFundHoldingsSource:
     ) -> HistoricalDataset:
         """Aggregate publicly detailed BLC_4 coded-asset holdings without materializing all rows."""
 
-        url, payload, retrieved, digest = self._download(year, month, retrieved_at=retrieved_at)
+        url, payload, retrieved, digest, receipt_id = self._download(year, month, retrieved_at=retrieved_at)
         aggregate: dict[tuple[pd.Timestamp, str], _CodedAssetAggregate] = {}
         with self._validated_zip(payload) as archive:
             confidential_present = any("CONFID" in name.upper() for name in archive.namelist())
@@ -304,6 +323,7 @@ class CVMFundHoldingsSource:
             sha256=digest,
             vintage_mode=VintageMode.CONSERVATIVE_RETRIEVAL,
             frame=frame.sort_values(["reference_date", "asset_code"]).reset_index(drop=True),
+            raw_receipt_id=receipt_id,
         )
 
     def healthcheck(self) -> bool:
