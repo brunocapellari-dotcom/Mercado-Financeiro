@@ -49,7 +49,7 @@ def _number(value: object) -> float | None:
 
 
 @dataclass
-class _EquityAggregate:
+class _CodedAssetAggregate:
     reference_date: pd.Timestamp
     asset_code: str
     quantity: float = 0.0
@@ -223,17 +223,17 @@ class CVMFundHoldingsSource:
             frame=frame.sort_values(["reference_date", "fund_id", "block", "asset_code"], na_position="last").reset_index(drop=True),
         )
 
-    def fetch_equity_aggregate(
+    def fetch_coded_asset_aggregate(
         self,
         year: int,
         month: int,
         *,
         retrieved_at: datetime | None = None,
     ) -> HistoricalDataset:
-        """Aggregate publicly detailed BLC_4 holdings without materializing all rows."""
+        """Aggregate publicly detailed BLC_4 coded-asset holdings without materializing all rows."""
 
         url, payload, retrieved, digest = self._download(year, month, retrieved_at=retrieved_at)
-        aggregate: dict[tuple[pd.Timestamp, str], _EquityAggregate] = {}
+        aggregate: dict[tuple[pd.Timestamp, str], _CodedAssetAggregate] = {}
         with self._validated_zip(payload) as archive:
             confidential_present = any("CONFID" in name.upper() for name in archive.namelist())
             for _, _, row in self._iter_rows(archive, wanted_blocks=frozenset({"BLC_4"})):
@@ -252,7 +252,7 @@ class CVMFundHoldingsSource:
                 key = (reference, asset_code)
                 item = aggregate.setdefault(
                     key,
-                    _EquityAggregate(reference_date=reference, asset_code=asset_code),
+                    _CodedAssetAggregate(reference_date=reference, asset_code=asset_code),
                 )
                 if quantity is not None:
                     item.quantity += quantity
@@ -298,7 +298,7 @@ class CVMFundHoldingsSource:
         require_pit_columns(frame)
         return HistoricalDataset(
             source=self.name,
-            dataset=f"FI_CDA_EQUITY_AGG_{year}{month:02d}",
+            dataset=f"FI_CDA_CODED_ASSET_AGG_{year}{month:02d}",
             source_url=url,
             retrieved_at=retrieved,
             sha256=digest,
