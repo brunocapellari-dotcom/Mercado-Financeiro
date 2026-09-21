@@ -1,26 +1,56 @@
 # Mercado Financeiro — agent operating contract
 
-This repository is the single development source of truth for Mercado Financeiro. Any coding agent or external development environment — including Claude Code, Replit, Codex or future tools — must work from a Git branch and return all changes to GitHub for the same complete project gates.
+This repository is the single development source of truth for Mercado Financeiro.
+Coding agents and external development environments must work from a Git branch and
+return every change to the same repository.
 
 ## Non-negotiable rules
 
-- Preserve the six-layer boundary: DADOS -> INTELIGENCIA -> PREVISAO -> SINAL -> RISCO -> EXECUCAO.
-- Historical research is point-in-time only. Never use future filings, current-universe backfills, future corporate actions or future identity evidence for economic signals.
-- Static historical identity reconstruction may use later evidence only when explicitly classified as identity reconstruction and never as economic information.
-- Raw official source artifacts and their hashes remain canonical evidence.
-- Fail closed on ambiguous issuer/security identity, schema drift, stale/live data uncertainty, missing risk state or missing execution reconciliation.
-- No live capital deployment until every source, research, risk, execution, security and reconciliation gate is green.
-- Never weaken tests, remove provenance or lower acceptance thresholds merely to obtain a green build.
-- Avoid duplicate frameworks, stores, schedulers or feature systems. Replace an existing component only when the replacement is objectively better and passes full regression.
+- Preserve DADOS -> INTELIGENCIA -> PREVISAO -> SINAL -> RISCO -> EXECUCAO.
+- LLM/Research produces hypotheses, never executable orders.
+- Historical research is point-in-time only. Never backfill future filings,
+  restatements, corporate actions, current-universe membership or future identity
+  evidence into economic signals.
+- Static identity reconstruction may use later evidence only when explicitly
+  classified as identity reconstruction and never as economic information.
+- Raw official artifacts and hashes remain canonical evidence.
+- Fail closed on schema drift, ambiguous identity, stale data, missing risk state,
+  unknown tool authority and unreconciled execution.
+- No live capital until every source, research, risk, execution, security and
+  reconciliation gate is green.
+- Never weaken tests, provenance, thresholds or red-team cases to obtain green.
+- Avoid duplicate frameworks, stores, schedulers and feature systems. Replace a
+  component only when the replacement reduces total complexity and passes full
+  regression.
 
-## Required validation before handoff
+## Canonical validation
 
-Run the complete suite, not a narrow module test. The GitHub `full-project-gate` is authoritative and includes deterministic tests, security checks and live official-source integration audits. Local green results do not override a failing GitHub gate.
+The validation contract is repository-owned:
+
+`python scripts/run_full_project_gate.py --mode full`
+
+Run the complete gate, not a narrow module suite. GitHub Actions is one executor of
+this contract, not the definition of correctness. Local, self-hosted, Cloud Build
+or another authorized executor is acceptable only when it executes the same commit
+and same gate without disabling checks.
+
+A commit without executed gate evidence is **not validated**.
+
+## Research-agent boundary
+
+Pydantic AI Harness is optional infrastructure behind project adapters. Tool access
+is fail-closed. Broker, execution, risk mutation, kill-switch and live namespaces
+are forbidden to research agents. Promptfoo/Pydantic Evals regression failures
+block promotion of the agent surface.
 
 ## Google Cloud boundary
 
-Read `docs/GOOGLE_CLOUD_READINESS.md` before any cloud work. No agent may create Google Cloud resources, credentials, broker integrations or live infrastructure until an explicitly reviewed deployment change exists in this repository and the full project is green.
+Read `docs/GOOGLE_CLOUD_READINESS.md` before cloud work. No agent may create
+production cloud resources, broker connections or live credentials until an
+explicitly reviewed deployment change exists and the complete project gate is green.
 
-## Replit / Claude Code / other environments
+## Development surfaces
 
-They are development surfaces, not alternate repositories or deployment authorities. Clone from GitHub, work on a branch, preserve these contracts, and push the result back for CI. Do not maintain divergent copies or hidden production configuration outside the repository-controlled process.
+Replit, Claude Code, Codex and similar tools are development surfaces, not alternate
+repositories or deployment authorities. Do not create divergent copies, hidden
+production configuration or independent live paths.
