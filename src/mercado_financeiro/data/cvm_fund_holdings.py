@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
 from io import BytesIO, TextIOWrapper
@@ -45,6 +46,15 @@ def _number(value: object) -> float | None:
         return None
     parsed = pd.to_numeric(text.replace(",", "."), errors="coerce")
     return None if pd.isna(parsed) else float(parsed)
+
+
+@dataclass
+class _EquityAggregate:
+    reference_date: pd.Timestamp
+    asset_code: str
+    quantity: float = 0.0
+    market_value: float = 0.0
+    funds: set[str] = field(default_factory=set)
 
 
 def _first(row: dict[str, str], *names: str) -> str | None:
@@ -223,7 +233,7 @@ class CVMFundHoldingsSource:
         """Aggregate publicly detailed BLC_4 holdings without materializing all rows."""
 
         url, payload, retrieved, digest = self._download(year, month, retrieved_at=retrieved_at)
-        aggregate: dict[tuple[pd.Timestamp, str], dict[str, object]] = {}
+        aggregate: dict[tuple[pd.Timestamp, str], _EquityAggregate] = {}
         with self._validated_zip(payload) as archive:
             confidential_present = any("CONFID" in name.upper() for name in archive.namelist())
             for _, _, row in self._iter_rows(archive, wanted_blocks=frozenset({"BLC_4"})):
@@ -242,29 +252,23 @@ class CVMFundHoldingsSource:
                 key = (reference, asset_code)
                 item = aggregate.setdefault(
                     key,
-                    {
-                        "reference_date": reference,
-                        "asset_code": asset_code,
-                        "quantity": 0.0,
-                        "market_value": 0.0,
-                        "funds": set(),
-                    },
+                    _EquityAggregate(reference_date=reference, asset_code=asset_code),
                 )
                 if quantity is not None:
-                    item["quantity"] = float(item["quantity"]) + quantity
+                    item.quantity += quantity
                 if market_value is not None:
-                    item["market_value"] = float(item["market_value"]) + market_value
+                    item.market_value += market_value
                 fund_id = _digits(_first(row, "CNPJ_FUNDO_CLASSE", "CNPJ_FUNDO"))
                 if fund_id:
-                    item["funds"].add(fund_id)
+                    item.funds.add(fund_id)
 
         rows = [
             {
-                "reference_date": item["reference_date"],
-                "asset_code": item["asset_code"],
-                "quantity": item["quantity"],
-                "market_value": item["market_value"],
-                "fund_count": len(item["funds"]),
+                "reference_date": item.reference_date,
+                "asset_code": item.asset_code,
+                "quantity": item.quantity,
+                "market_value": item.market_value,
+                "fund_count": len(item.funds),
                 "coverage_status": (
                     "public_detail_only_confidential_positions_exist"
                     if confidential_present
