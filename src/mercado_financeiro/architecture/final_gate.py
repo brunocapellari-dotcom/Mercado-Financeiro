@@ -13,6 +13,7 @@ class FinalProjectCapabilities:
     """
 
     full_test_suite: bool = False
+    static_quality_gate: bool = False
     security_suite: bool = False
     official_source_integration: bool = False
     historical_identity_2011_2026: bool = False
@@ -22,6 +23,7 @@ class FinalProjectCapabilities:
     total_return_reconciled: bool = False
     investable_universe_pit: bool = False
     cvm_fundamentals_pit: bool = False
+    cvm_fund_flows_pit: bool = False
     bcb_macro_pit: bool = False
     anbima_data_validated: bool = False
     nefin_reconciled: bool = False
