@@ -24,6 +24,7 @@ class HistoricalDataset:
     sha256: str
     vintage_mode: VintageMode
     frame: pd.DataFrame
+    raw_receipt_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.retrieved_at.tzinfo is None or self.retrieved_at.utcoffset() is None:
@@ -36,6 +37,10 @@ class HistoricalDataset:
             raise ValueError("sha256 must be hexadecimal") from exc
         if not self.source.strip() or not self.dataset.strip():
             raise ValueError("source and dataset are required")
+        if self.raw_receipt_id is not None:
+            receipt = self.raw_receipt_id.strip().lower()
+            if len(receipt) != 64 or any(ch not in "0123456789abcdef" for ch in receipt):
+                raise ValueError("raw_receipt_id must be a 64-character hexadecimal digest")
 
     @property
     def retrieved_at_utc(self) -> datetime:
