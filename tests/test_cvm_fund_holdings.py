@@ -4,7 +4,8 @@ import zipfile
 
 import pandas as pd
 
-from mercado_financeiro.data import CVMFundHoldingsSource, VintageMode, asof
+from mercado_financeiro.data import AcquisitionContext, CVMFundHoldingsSource, VintageMode, asof
+from mercado_financeiro.security import RawEvidenceVault
 
 
 def _payload() -> bytes:
@@ -72,3 +73,27 @@ def test_cvm_holdings_coded_asset_aggregate_tracks_disclosed_coverage(monkeypatc
     assert petr["fund_count"] == 2
     assert petr["coverage_status"] == "public_detail_only_confidential_positions_exist"
     assert dataset.frame["available_from"].eq(pd.Timestamp(retrieved)).all()
+
+
+def test_cvm_holdings_preserves_exact_raw_acquisition_receipt(monkeypatch, tmp_path):
+    payload = _payload()
+    monkeypatch.setattr(
+        "mercado_financeiro.data.cvm_fund_holdings.download_https",
+        lambda url, policy: payload,
+    )
+    retrieved = datetime(2026, 9, 21, 12, 0, tzinfo=timezone.utc)
+    vault = RawEvidenceVault(tmp_path / "raw")
+    source = CVMFundHoldingsSource(
+        acquisition=AcquisitionContext(
+            raw_vault=vault,
+            run_id="cvm-cda-test",
+            commit_sha="abcdef1",
+        )
+    )
+    dataset = source.fetch_coded_asset_aggregate(2026, 8, retrieved_at=retrieved)
+
+    assert dataset.raw_receipt_id is not None
+    assert vault.read_payload(dataset.sha256) == payload
+    receipt = vault.read_receipt(dataset.raw_receipt_id)
+    assert '"upstream_id":"cda_fi_202608.zip"' in receipt
+    assert '"parser_version":"cvm-fund-holdings-v1"' in receipt
