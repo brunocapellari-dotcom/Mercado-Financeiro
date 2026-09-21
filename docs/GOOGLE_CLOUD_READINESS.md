@@ -75,3 +75,18 @@ Replit and Claude Code can be used after the GitHub implementation is complete e
 7. never weaken tests or coverage thresholds merely to make a build pass.
 
 This preserves one codebase, one data contract and one deployment authority while still allowing multiple development environments later.
+
+
+## Query portability review — 2026-09-21
+
+Ibis Framework 12 is the preferred candidate for a future query-portability adapter
+because it supports both DuckDB and BigQuery behind one expression API. It is not a
+replacement for `PITSnapshotStore` and is not yet a mandatory dependency.
+
+Before adoption, representative PIT transforms must compile/run on both backends and
+produce identical entity sets, temporal filtering, null semantics and numeric results
+within explicit tolerances.
+
+dlt and Dagster remain deferred. They may be adopted later only if measured against
+the current collectors/gate and shown to reduce total ingestion/orchestration code
+without weakening source security, raw-evidence preservation or PIT provenance.
