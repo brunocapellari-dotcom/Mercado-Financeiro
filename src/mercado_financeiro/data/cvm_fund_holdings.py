@@ -183,7 +183,7 @@ class CVMFundHoldingsSource:
                             _first(row, "VL_MERC_POS_FINAL", "VL_MERCADO", "VL_MERC_POSICAO")
                         ),
                         "source_member": member,
-                        "public_detail_only": bool(confidential_present),
+                        "confidential_positions_present": bool(confidential_present),
                     }
                 )
 
@@ -203,7 +203,7 @@ class CVMFundHoldingsSource:
                     "quantity",
                     "market_value",
                     "source_member",
-                    "public_detail_only",
+                    "confidential_positions_present",
                 ]
             )
             frame["reference_date"] = pd.to_datetime(frame["reference_date"], utc=True)
@@ -272,7 +272,7 @@ class CVMFundHoldingsSource:
                 "coverage_status": (
                     "public_detail_only_confidential_positions_exist"
                     if confidential_present
-                    else "public_detail_only"
+                    else "confidential_positions_present"
                 ),
             }
             for item in aggregate.values()
