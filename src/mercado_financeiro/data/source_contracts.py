@@ -220,6 +220,47 @@ NEFIN_CONTRACT = FinancialSourceContract(
     availability_column="available_from",
 )
 
+
+CVM_FUND_DAILY_CONTRACT = FinancialSourceContract(
+    name="CVM_FUND_DAILY",
+    quality=DataQualityContract(
+        name="CVM_FUND_DAILY",
+        required_columns=(
+            "fund_id",
+            "reference_date",
+            "total_portfolio",
+            "nav",
+            "quota_value",
+            "inflows",
+            "outflows",
+            "shareholders",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+        not_null_columns=(
+            "fund_id",
+            "reference_date",
+            "nav",
+            "quota_value",
+            "available_from",
+            "source_retrieved_at",
+            "source_sha256",
+        ),
+        unique_key=("fund_id", "reference_date"),
+    ),
+    reference_column="reference_date",
+    availability_column="available_from",
+    numeric_ranges={
+        "total_portfolio": (0.0, None),
+        "nav": (0.0, None),
+        "quota_value": (0.0, None),
+        "inflows": (0.0, None),
+        "outflows": (0.0, None),
+        "shareholders": (0.0, None),
+    },
+)
+
 CORPORATE_DATA_CONTRACT = FinancialSourceContract(
     name="CORPORATE_DATA",
     quality=CVM_FUNDAMENTALS_CONTRACT.quality,
@@ -257,6 +298,7 @@ SOURCE_CONTRACTS: Mapping[str, FinancialSourceContract] = {
         COTAHIST_CONTRACT,
         BVBG028_CONTRACT,
         CVM_FUNDAMENTALS_CONTRACT,
+        CVM_FUND_DAILY_CONTRACT,
         CORPORATE_DATA_CONTRACT,
         BCB_CONTRACT,
         NEFIN_CONTRACT,
