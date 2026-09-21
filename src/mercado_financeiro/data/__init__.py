@@ -3,6 +3,7 @@ from .bcb import BCBSgsSource
 from .bcb_catalog import BCBSeries, BCBSeriesContract, BCB_SERIES_CATALOG, get_bcb_series_contract
 from .fundamentals import FundamentalsAudit, fundamentals_asof, validate_fundamental_observations
 from .cvm_funds import CVMFundDailySource
+from .cvm_fund_holdings import CVMFundHoldingsSource
 from .historical import (
     HistoricalDataset,
     HistoricalDataSource,
@@ -36,6 +37,7 @@ __all__ = [
     "AnbimaFeedSource",
     "BCBSgsSource",
     "CVMFundDailySource",
+    "CVMFundHoldingsSource",
     "BCBSeries",
     "BCBSeriesContract",
     "BCB_SERIES_CATALOG",
