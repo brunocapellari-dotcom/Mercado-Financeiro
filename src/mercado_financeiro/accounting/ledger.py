@@ -58,6 +58,7 @@ class PortfolioAccountingLedger:
             raise ValueError("initial_cash cannot be negative")
         self._cash = initial_cash
         self._cumulative_fees = Decimal("0")
+        self._realized_pnl = Decimal("0")
         self._positions: dict[str, PositionAccounting] = {}
         self._fill_ids: set[str] = set()
 
@@ -118,6 +119,7 @@ class PortfolioAccountingLedger:
         self._cash -= qf * price
         self._cash -= fee
         self._cumulative_fees += fee
+        self._realized_pnl += realized_delta
         self._fill_ids.add(fill_id)
         if q1 == 0:
             self._positions.pop(instrument, None)
@@ -130,10 +132,7 @@ class PortfolioAccountingLedger:
         return PortfolioAccountingSnapshot(
             cash=self._cash,
             cumulative_fees=self._cumulative_fees,
-            realized_pnl=sum(
-                (position.realized_pnl for position in positions.values()),
-                Decimal("0"),
-            ),
+            realized_pnl=self._realized_pnl,
             positions=positions,
             applied_fill_ids=tuple(sorted(self._fill_ids)),
         )
