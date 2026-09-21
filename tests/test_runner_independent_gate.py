@@ -18,7 +18,7 @@ def test_gate_plan_preserves_whole_project_boundaries():
     sources = official_source_gate_plan("python-test")
     full = build_gate_plan("full", "python-test")
 
-    assert len(deterministic) == 5
+    assert len(deterministic) == 9
     assert len(sources) == 13
     assert full == deterministic + sources
     assert all(command.argv[0] == "python-test" for command in full)
@@ -26,7 +26,11 @@ def test_gate_plan_preserves_whole_project_boundaries():
     assert all(command.network_required for command in sources)
 
     names = {command.name for command in full}
-    assert "pytest-complete" in names
+    assert "ruff-high-signal" in names
+    assert "mypy-core" in names
+    assert "pytest-complete-seed-a" in names
+    assert "pytest-complete-seed-b" in names
+    assert "agent-stack-compatibility" in names
     assert "dependency-audit" in names
     assert "historical-identity-2011-2026" in names
     assert "cvm-pit-history" in names
