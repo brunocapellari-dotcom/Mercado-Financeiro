@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -29,9 +30,13 @@ def main() -> int:
         if not str(case["input"]).strip() or not str(case["category"]).strip():
             raise RuntimeError(f"research case {name} has blank input/category")
 
-    from evals.pydantic.build_dataset import build_research_dataset
-
-    dataset = build_research_dataset()
+    builder_path = Path(__file__).resolve().parents[1] / "evals" / "pydantic" / "build_dataset.py"
+    spec = importlib.util.spec_from_file_location("mf_pydantic_eval_builder", builder_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("cannot load Pydantic Evals dataset builder")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    dataset = module.build_research_dataset()
     if len(dataset.cases) != len(cases):
         raise RuntimeError("Pydantic Evals dataset does not cover canonical corpus")
 
