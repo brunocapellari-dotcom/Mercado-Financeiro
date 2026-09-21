@@ -3,6 +3,7 @@ import pandas as pd
 from mercado_financeiro.data.source_contracts import (
     COTAHIST_CONTRACT,
     CVM_FUNDAMENTALS_CONTRACT,
+    CVM_FUND_DAILY_CONTRACT,
     get_financial_source_contract,
 )
 
@@ -76,3 +77,35 @@ def test_cvm_contract_rejects_lookahead_and_future_information():
 
 def test_source_contract_registry_is_explicit():
     assert get_financial_source_contract("cotahist") is COTAHIST_CONTRACT
+
+
+def test_cvm_fund_daily_contract_rejects_future_restatement_in_historical_asof():
+    frame = pd.DataFrame(
+        [
+            {
+                "fund_id": "00.000.000/0001-00",
+                "reference_date": "2026-09-18T00:00:00Z",
+                "total_portfolio": 1100.0,
+                "nav": 1000.0,
+                "quota_value": 1.1,
+                "inflows": 50.0,
+                "outflows": 20.0,
+                "shareholders": 100,
+                "available_from": "2026-09-21T12:00:00Z",
+                "source_retrieved_at": "2026-09-21T12:00:00Z",
+                "source_sha256": "a" * 64,
+            }
+        ]
+    )
+    historical = CVM_FUND_DAILY_CONTRACT.evaluate(
+        frame,
+        as_of=pd.Timestamp("2026-09-20T23:59:59Z"),
+    )
+    assert not historical.passed
+    assert "future_information_rows=1" in historical.violations
+
+    current = CVM_FUND_DAILY_CONTRACT.evaluate(
+        frame,
+        as_of=pd.Timestamp("2026-09-21T12:00:00Z"),
+    )
+    assert current.passed
