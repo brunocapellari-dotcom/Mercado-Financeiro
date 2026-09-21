@@ -11,6 +11,7 @@ from .io import (
     validate_zip_bytes,
 )
 from .provenance import SourceManifest, build_source_manifest, verify_payload_digest
+from .raw_vault import RawEvidenceConflictError, RawEvidenceReceipt, RawEvidenceVault
 from .replay import InMemoryReplayStore, ReplayStore
 from .webhooks import (
     HMACWebhookVerifier,
@@ -24,6 +25,9 @@ __all__ = [
     "HMACWebhookVerifier",
     "InMemoryReplayStore",
     "ReplayStore",
+    "RawEvidenceConflictError",
+    "RawEvidenceReceipt",
+    "RawEvidenceVault",
     "RetryPolicy",
     "SourceManifest",
     "SourceSecurityError",
