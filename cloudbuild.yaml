@@ -1,0 +1,64 @@
+steps:
+  - id: secret-scan
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1
+    args: ["dir", "/workspace", "--redact", "--no-banner"]
+
+  - id: deterministic-python-311
+    name: python:3.11-bookworm
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+        pip install -e '.[test,validation,quality,agents]'
+        python scripts/run_full_project_gate.py --mode deterministic
+
+  - id: deterministic-python-312
+    name: python:3.12-bookworm
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+        pip install -e '.[test,validation,quality,agents]'
+        python scripts/run_full_project_gate.py --mode deterministic
+
+  - id: official-source-integrations
+    name: python:3.12-bookworm
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+        pip install -e '.[test]'
+        python scripts/audit_identity_2011_2026.py
+        python scripts/audit_share_history_2011_2026.py
+        python scripts/audit_b3_company_events_live.py
+        python scripts/audit_fca_schema.py
+        python scripts/audit_fca_invalid_tickers.py
+        python scripts/audit_cotahist_live.py
+        python scripts/audit_b3_emissor_identity.py
+        python scripts/audit_identity_2011_live.py
+        python scripts/audit_identity_2011_with_emissor.py
+        python scripts/audit_identity_2011_exact_isin.py
+        python scripts/audit_cvm_pit_history.py
+        python scripts/audit_cvm_fund_daily.py
+        python scripts/audit_cvm_fund_holdings.py
+        python scripts/audit_bvbg028_history.py
+        python scripts/audit_official_macro_sources.py
+        printf 'FULL_PROJECT_GATE_OK\n' > /workspace/cloudbuild-gate-summary.txt
+
+  - id: persist-evidence
+    name: gcr.io/google.com/cloudsdktool/google-cloud-cli:stable
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        printf '%s\n' "${COMMIT_SHA}" > /workspace/source-commit.txt
+        gcloud storage cp /workspace/cloudbuild-gate-summary.txt /workspace/source-commit.txt \
+          "gs://${PROJECT_ID}-ai-execution-evidence/Mercado-Financeiro/${BUILD_ID}/"
+
+timeout: 14400s
+serviceAccount: "projects/${PROJECT_ID}/serviceAccounts/ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com"
+options:
+  logging: CLOUD_LOGGING_ONLY
