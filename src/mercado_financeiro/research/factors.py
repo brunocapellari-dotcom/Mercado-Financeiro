@@ -81,11 +81,11 @@ def build_cross_sectional_factor_scores(
     for factor, components in FACTOR_COMPONENTS.items():
         if not any(name in out.columns for name, _ in components):
             continue
-        out[f"{factor}_score"] = (
-            out.groupby(date_column, sort=False, group_keys=False)
-            .apply(lambda group: _factor_for_group(group, components), include_groups=False)
-            .reindex(out.index)
-        )
+        scores = pd.Series(float("nan"), index=out.index, dtype=float)
+        for _, index in out.groupby(date_column, sort=False).groups.items():
+            group = out.loc[index]
+            scores.loc[index] = _factor_for_group(group, components)
+        out[f"{factor}_score"] = scores
         computed.append(factor)
 
     if not computed:
