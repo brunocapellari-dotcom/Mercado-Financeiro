@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import hashlib
 import io
 from pathlib import PurePosixPath
+import re
 import stat
 import time
 from typing import Iterable, Mapping
@@ -30,9 +31,21 @@ DEFAULT_ALLOWED_SOURCE_HOSTS = frozenset(
     }
 )
 
-_SENSITIVE_HEADER_NAMES = frozenset({"authorization", "proxy-authorization", "x-api-key", "access_token"})
+_SENSITIVE_HEADER_NAMES = frozenset(
+    {
+        "authorization",
+        "proxy-authorization",
+        "cookie",
+        "x-api-key",
+        "api-key",
+        "x-auth-token",
+        "access_token",
+        "x-goog-api-key",
+    }
+)
 _FORBIDDEN_CALLER_HEADERS = frozenset({"host", "content-length"})
 _ALLOWED_METHODS = frozenset({"GET", "POST"})
+_HEADER_NAME_RE = re.compile(r"^[!#$%&'*+.^_\x60|~0-9A-Za-z-]{1,128}$")
 
 
 class SourceSecurityError(ValueError):
@@ -53,6 +66,17 @@ class DownloadPolicy:
             raise ValueError("max_bytes must be positive")
         if not self.allowed_hosts:
             raise ValueError("allowed_hosts must not be empty")
+        normalized = frozenset(host.strip().lower().rstrip(".") for host in self.allowed_hosts)
+        if any(
+            not host
+            or ":" in host
+            or "/" in host
+            or "*" in host
+            or any(ord(ch) < 33 or ord(ch) == 127 for ch in host)
+            for host in normalized
+        ):
+            raise ValueError("allowed_hosts must contain plain DNS hostnames only")
+        object.__setattr__(self, "allowed_hosts", normalized)
 
 
 @dataclass(frozen=True)
@@ -113,6 +137,8 @@ def validate_source_url(
     url: str,
     allowed_hosts: Iterable[str] | None = None,
 ) -> str:
+    if not isinstance(url, str) or any(ord(ch) < 32 or ord(ch) == 127 for ch in url):
+        raise SourceSecurityError("source URL contains control characters")
     parsed = urlsplit(url)
     if parsed.scheme.lower() != "https":
         raise SourceSecurityError("external source must use HTTPS")
@@ -121,6 +147,12 @@ def validate_source_url(
     host = (parsed.hostname or "").lower().rstrip(".")
     if not host:
         raise SourceSecurityError("source URL has no hostname")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise SourceSecurityError("source URL has an invalid port") from exc
+    if port not in (None, 443):
+        raise SourceSecurityError("external HTTPS sources must use port 443")
     allowed = frozenset(h.lower().rstrip(".") for h in (allowed_hosts or DEFAULT_ALLOWED_SOURCE_HOSTS))
     if host not in allowed:
         raise SourceSecurityError(f"source host is not allowlisted: {host}")
@@ -130,12 +162,16 @@ def validate_source_url(
 def _validated_headers(headers: Mapping[str, str] | None) -> dict[str, str]:
     result: dict[str, str] = {}
     for name, value in (headers or {}).items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            raise SourceSecurityError("HTTP header names and values must be strings")
         normalized = name.strip().lower()
+        if not _HEADER_NAME_RE.fullmatch(name.strip()):
+            raise SourceSecurityError(f"invalid HTTP header name: {name!r}")
         if normalized in _FORBIDDEN_CALLER_HEADERS:
             raise SourceSecurityError(f"caller may not override HTTP header: {name}")
-        if "\r" in name or "\n" in name or "\r" in value or "\n" in value:
-            raise SourceSecurityError("HTTP header injection attempt rejected")
-        result[name] = value
+        if len(value) > 8192 or any(ch in value for ch in ("\r", "\n", "\x00")):
+            raise SourceSecurityError("invalid or oversized HTTP header value")
+        result[name.strip()] = value
     return result
 
 
