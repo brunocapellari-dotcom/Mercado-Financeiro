@@ -66,7 +66,7 @@ TOOL_POLICY: Mapping[str, ToolPolicy] = {
     "skfolio": ToolPolicy(
         name="skfolio",
         role=BenchmarkRole.OPTIMIZER_BENCHMARK,
-        current_line="0.20.x",
+        current_line="1.4.x",
         allowed_capabilities=frozenset({"portfolio_optimization", "risk_model_benchmark"}),
         financial_authority=False,
         real_capital_allowed=False,
