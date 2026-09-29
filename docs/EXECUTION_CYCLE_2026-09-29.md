@@ -50,12 +50,12 @@ run for the current head.
 | 41 | Nautilus scope | implemented | benchmark-only RC policy |
 | 42 | strategy/factor catalogue | implemented in this cycle | research/catalog.py |
 | 43 | five factor baselines | implemented in this cycle | research/factors.py |
-| 44 | Brazilian multifactor baseline | implemented in this cycle | multifactor_score over PIT cross-sections |
-| 45 | implementation costs | implemented | execution/brokerage.py |
+| 44 | Brazilian multifactor model | implemented in this cycle | PIT composite + NEFIN-compatible OLS validation |
+| 45 | implementation costs and tax boundary | implemented | execution/brokerage.py + accounting/tax.py; statutory rates require audited official rule sets |
 | 46 | portfolio constraints | implemented | risk/portfolio.py |
 | 47 | deterministic Risk Manager | implemented | risk/engine.py + authority firewall |
 | 48 | accounting/paper foundations | implemented | ledger + execution/reconciliation/runtime |
-| 49 | full backtest/Monte Carlo/stress execution | blocked validation | requires whole-project executor and data run |
+| 49 | full backtest/Monte Carlo/stress execution | engine implemented / execution blocked | tournament + block-bootstrap + historical stress require whole-project executor/data run |
 | 50 | readiness gate | implemented / blocked final pass | architecture/final_gate.py |
 
 ## Acceptance interpretation
