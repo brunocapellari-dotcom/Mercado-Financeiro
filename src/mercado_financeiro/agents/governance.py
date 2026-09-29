@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+import re
 from types import ModuleType
 
 
@@ -12,13 +13,23 @@ class ToolDecision(str, Enum):
     DENY = "deny"
 
 
+_TOOL_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._:-]{0,127}$")
+
+
+def _canonical_tool_name(value: object) -> str:
+    name = str(value).strip().lower()
+    if not _TOOL_NAME_RE.fullmatch(name):
+        raise ValueError(f"invalid tool name: {value!r}")
+    return name
+
+
 @dataclass(frozen=True)
 class ResearchToolPolicy:
     """Fail-closed tool policy for LLM-backed financial research agents.
 
-    Research agents may gather evidence and create hypotheses. They must never
-    obtain a path to broker execution, runtime risk-limit mutation, kill-switch
-    control, or live-trading state changes.
+    Names are canonicalized at construction so case tricks cannot bypass
+    execution/risk deny rules. Invalid or forbidden authorization configuration
+    is rejected immediately instead of being tolerated until runtime.
     """
 
     allowed_tools: frozenset[str] = frozenset()
@@ -33,16 +44,35 @@ class ResearchToolPolicy:
     )
 
     def __post_init__(self) -> None:
-        overlap = self.allowed_tools.intersection(self.approval_required_tools)
+        allowed = frozenset(_canonical_tool_name(name) for name in self.allowed_tools)
+        approval = frozenset(
+            _canonical_tool_name(name) for name in self.approval_required_tools
+        )
+        prefixes = tuple(_canonical_tool_name(prefix) for prefix in self.forbidden_prefixes)
+        overlap = allowed.intersection(approval)
         if overlap:
             raise ValueError(
                 "tools cannot be both allowed and approval-required: "
                 + ",".join(sorted(overlap))
             )
+        forbidden_config = sorted(
+            name
+            for name in allowed | approval
+            if any(name == prefix.rstrip(".") or name.startswith(prefix) for prefix in prefixes)
+        )
+        if forbidden_config:
+            raise ValueError(
+                "research tool policy cannot authorize forbidden tools: "
+                + ",".join(forbidden_config)
+            )
+        object.__setattr__(self, "allowed_tools", allowed)
+        object.__setattr__(self, "approval_required_tools", approval)
+        object.__setattr__(self, "forbidden_prefixes", prefixes)
 
     def decide(self, tool_name: str) -> ToolDecision:
-        name = str(tool_name).strip()
-        if not name:
+        try:
+            name = _canonical_tool_name(tool_name)
+        except ValueError:
             return ToolDecision.DENY
         if any(
             name == prefix.rstrip(".") or name.startswith(prefix)
@@ -154,12 +184,9 @@ def missing_harness_capabilities(
     module: ModuleType | object,
     profile: PydanticHarnessProfile | None = None,
 ) -> tuple[str, ...]:
-    """Return required Harness capabilities absent from an imported adapter module."""
-
     active = profile or PydanticHarnessProfile()
-    missing = [
+    return tuple(
         capability
         for capability in active.required_capabilities
         if not hasattr(module, capability)
-    ]
-    return tuple(missing)
+    )
