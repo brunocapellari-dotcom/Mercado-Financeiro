@@ -34,6 +34,7 @@ def deterministic_gate_plan(
             (py, "-m", "compileall", "-q", "src", "scripts", "tests", "evals"),
         ),
         GateCommand("repository-security-scan", (py, "scripts/security_scan.py")),
+        GateCommand("workflow-security-scan", (py, "scripts/workflow_security_scan.py")),
         GateCommand(
             "ruff-high-signal",
             (py, "-m", "ruff", "check", "src", "scripts", "tests", "evals"),
