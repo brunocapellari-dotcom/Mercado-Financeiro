@@ -33,7 +33,7 @@ class FakeBroker:
     def submit_order(self, order: OrderIntent, *, client_order_id: str) -> BrokerOrderAck:
         self.calls += 1
         self.client_order_ids.append(client_order_id)
-        return BrokerOrderAck(broker_order_id=f"B-{self.calls}", status="accepted")
+        return BrokerOrderAck(accepted=True, broker_order_id=f"B-{self.calls}", status="accepted")
 
 
 def _limits() -> RiskLimits:
@@ -220,3 +220,54 @@ def test_webhook_signature_spoof_replay_and_stale_are_rejected():
             event_id="evt-3",
             now=now + timedelta(minutes=10),
         )
+
+
+def test_webhook_limits_and_signature_encoding_fail_closed():
+    verifier = HMACWebhookVerifier(
+        b"unit-test-secret",
+        max_payload_bytes=8,
+        max_event_id_bytes=8,
+    )
+    now = datetime(2026, 9, 15, 17, 0, tzinfo=timezone.utc)
+    with pytest.raises(WebhookVerificationError, match="payload"):
+        verifier.verify(
+            payload=b"x" * 9,
+            signature_hex="00" * 32,
+            timestamp=int(now.timestamp()),
+            event_id="evt",
+            now=now,
+        )
+    with pytest.raises(WebhookVerificationError, match="event_id"):
+        verifier.verify(
+            payload=b"{}",
+            signature_hex="00" * 32,
+            timestamp=int(now.timestamp()),
+            event_id="event-too-long",
+            now=now,
+        )
+    with pytest.raises(WebhookVerificationError, match="encoding"):
+        verifier.verify(
+            payload=b"{}",
+            signature_hex="not-hex",
+            timestamp=int(now.timestamp()),
+            event_id="evt",
+            now=now,
+        )
+
+
+def test_broker_rejection_ack_is_not_misclassified_as_accepted():
+    class RejectingBroker:
+        def submit_order(self, order, *, client_order_id):
+            return BrokerOrderAck(
+                accepted=False,
+                status="rejected",
+                broker_order_id="R-1",
+            )
+
+    engine = DeterministicExecutionEngine(
+        risk_engine=DeterministicRiskEngine(_limits()),
+        broker=RejectingBroker(),
+    )
+    result = engine.execute(_order(key="reject-ack"), _context())
+    assert result.accepted is False
+    assert result.status == "rejected"
