@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Point-in-time quantitative research core for B3/CVM"
 requires-python = ">=3.11"
 dependencies = [
-    "duckdb>=1.5.5,<2",
+    "duckdb>=1.5.6,<2",
     "numpy>=1.26,<3",
     "lxml>=5",
     "pandas>=2.1",
@@ -32,12 +32,12 @@ quality = [
     "ruff>=0.16.8,<0.17",
 ]
 agents = [
-    "pydantic-ai-harness[dynamic-workflow]>=0.32,<0.33",
-    "pydantic-evals>=2.46,<2.47",
+    "pydantic-ai-harness[dynamic-workflow]>=0.36,<0.37",
+    "pydantic-evals>=2.51,<2.52",
 ]
 benchmark = [
     "vectorbt>=1.1.1,<1.2",
-    "skfolio>=0.20.1,<0.21",
+    "skfolio>=1.4.9,<1.5",
 ]
 
 [tool.setuptools.packages.find]
@@ -67,5 +67,5 @@ show_error_codes = true
 pretty = true
 
 [tool.uv]
-required-version = ">=0.12.19,<0.13"
+required-version = ">=0.12.20,<0.13"
 exclude-newer = "2026-09-29T12:00:00Z"
