@@ -42,3 +42,15 @@ __all__ = [
     "validate_zip_bytes",
     "verify_payload_digest",
 ]
+
+from .supply_chain import (
+    SupplyChainEvidence,
+    assert_deployable_supply_chain,
+    load_supply_chain_evidence,
+)
+
+__all__ += [
+    "SupplyChainEvidence",
+    "assert_deployable_supply_chain",
+    "load_supply_chain_evidence",
+]
