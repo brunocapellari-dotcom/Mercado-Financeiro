@@ -76,3 +76,12 @@ def test_harness_capability_check_is_adapter_based_not_version_coupled():
     missing = missing_harness_capabilities(incomplete)
     assert "SubAgents" in missing
     assert "TrajectoryJudge" in missing
+
+
+def test_research_tool_policy_normalizes_case_and_rejects_forbidden_configuration():
+    policy = ResearchToolPolicy(allowed_tools=frozenset({"Research.Web"}))
+    assert policy.decide("RESEARCH.WEB") is ToolDecision.ALLOW
+    assert policy.decide("Broker.Submit_Order") is ToolDecision.DENY
+    with pytest.raises(ValueError, match="forbidden"):
+        ResearchToolPolicy(allowed_tools=frozenset({"Broker.Submit_Order"}))
+    assert policy.decide("research.web\nexecution.submit") is ToolDecision.DENY
