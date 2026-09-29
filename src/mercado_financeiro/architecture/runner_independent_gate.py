@@ -91,6 +91,7 @@ def official_source_gate_plan(
         ("cvm-fund-holdings", "scripts/audit_cvm_fund_holdings.py"),
         ("bvbg028-history", "scripts/audit_bvbg028_history.py"),
         ("official-macro-sources", "scripts/audit_official_macro_sources.py"),
+        ("bcb-olinda-ptax-focus", "scripts/audit_bcb_olinda_live.py"),
     )
     return tuple(
         GateCommand(name, (py, script), network_required=True) for name, script in scripts
