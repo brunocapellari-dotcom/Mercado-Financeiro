@@ -51,9 +51,9 @@ def load_pydantic_harness_registry() -> HarnessCapabilityRegistry:
         ) from exc
 
     parts = version.split(".")
-    if len(parts) < 2 or parts[0] != "0" or parts[1] != "32":
+    if len(parts) < 2 or parts[0] != "0" or parts[1] != "36":
         raise HarnessCompatibilityError(
-            f"unsupported pydantic-ai-harness minor: {version}; expected 0.32.x"
+            f"unsupported pydantic-ai-harness minor: {version}; expected 0.36.x"
         )
 
     return HarnessCapabilityRegistry(
