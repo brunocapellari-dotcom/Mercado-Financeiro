@@ -56,7 +56,13 @@ steps:
       - -ceu
       - |
         printf '%s\n' "${COMMIT_SHA}" > /workspace/source-commit.txt
-        gcloud storage cp /workspace/cloudbuild-gate-summary.txt /workspace/source-commit.txt \
+        test -s /workspace/artifacts/gate/sbom.cdx.json
+        test -s /workspace/artifacts/gate/provenance.json
+        gcloud storage cp \
+          /workspace/cloudbuild-gate-summary.txt \
+          /workspace/source-commit.txt \
+          /workspace/artifacts/gate/sbom.cdx.json \
+          /workspace/artifacts/gate/provenance.json \
           "gs://${PROJECT_ID}-ai-execution-evidence/Mercado-Financeiro/${BUILD_ID}/"
 
 timeout: 14400s
