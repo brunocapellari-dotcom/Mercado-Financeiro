@@ -123,3 +123,12 @@ def test_retry_does_not_mask_permanent_http_or_security_failures(monkeypatch):
                 max_delay_seconds=0,
             ),
         )
+
+
+def test_source_url_rejects_nonstandard_ports_and_header_injection():
+    with pytest.raises(SourceSecurityError, match="port 443"):
+        validate_source_url("https://dados.cvm.gov.br:8443/example.zip")
+    with pytest.raises(SourceSecurityError):
+        security_io._validated_headers({"X-Test\nInjected": "value"})
+    with pytest.raises(SourceSecurityError):
+        security_io._validated_headers({"X-Test": "value\r\nInjected: yes"})
