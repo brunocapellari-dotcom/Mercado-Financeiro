@@ -14,7 +14,7 @@ class FakeBroker:
 
     def submit_order(self, order: OrderIntent, *, client_order_id: str) -> BrokerOrderAck:
         self.calls += 1
-        return BrokerOrderAck(broker_order_id=f"B-{self.calls}", status="accepted")
+        return BrokerOrderAck(accepted=True, broker_order_id=f"B-{self.calls}", status="accepted")
 
 
 def _execution() -> tuple[DeterministicExecutionEngine, FakeBroker]:
