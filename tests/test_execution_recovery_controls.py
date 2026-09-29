@@ -24,7 +24,7 @@ class CountingBroker:
         self.calls += 1
         if self.ambiguous:
             raise BrokerSubmissionOutcomeUnknown("timeout after send")
-        return BrokerOrderAck(broker_order_id=f"B-{self.calls}", status="accepted")
+        return BrokerOrderAck(accepted=True, broker_order_id=f"B-{self.calls}", status="accepted")
 
 
 def _risk() -> DeterministicRiskEngine:
