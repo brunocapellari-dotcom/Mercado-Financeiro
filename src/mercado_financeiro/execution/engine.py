@@ -15,8 +15,26 @@ from mercado_financeiro.risk import (
 
 @dataclass(frozen=True)
 class BrokerOrderAck:
-    broker_order_id: str
+    accepted: bool
     status: str
+    broker_order_id: str | None = None
+
+    def __post_init__(self) -> None:
+        status = self.status.strip().lower()
+        if not status or len(status) > 64 or any(
+            ord(ch) < 32 or ord(ch) == 127 for ch in status
+        ):
+            raise ValueError("broker ACK status must be a short printable value")
+        broker_id = self.broker_order_id.strip() if self.broker_order_id is not None else None
+        if self.accepted and not broker_id:
+            raise ValueError("accepted broker ACK requires broker_order_id")
+        if broker_id is not None and (
+            len(broker_id) > 256
+            or any(ord(ch) < 32 or ord(ch) == 127 for ch in broker_id)
+        ):
+            raise ValueError("invalid broker_order_id")
+        object.__setattr__(self, "status", status)
+        object.__setattr__(self, "broker_order_id", broker_id)
 
 
 class BrokerSubmissionOutcomeUnknown(RuntimeError):
@@ -195,7 +213,7 @@ class DeterministicExecutionEngine:
                 return result
 
             result = ExecutionResult(
-                accepted=True,
+                accepted=ack.accepted,
                 status=ack.status,
                 client_order_id=client_order_id,
                 broker_order_id=ack.broker_order_id,
