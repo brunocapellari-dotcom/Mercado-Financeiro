@@ -10,7 +10,7 @@ FACTOR_COMPONENTS: Mapping[str, tuple[tuple[str, bool], ...]] = {
     "value": (("earnings_yield", True), ("book_to_market", True), ("free_cash_flow_yield", True)),
     "quality": (("roe", True), ("gross_profitability", True), ("cash_return_on_assets", True)),
     "momentum": (("momentum_63", True), ("momentum_252", True)),
-    "low_risk": (("volatility_63", False), ("beta_252", False), ("drawdown_252", False)),
+    "low_risk": (("volatility_63", False), ("beta_252", False), ("max_drawdown_abs_252", False)),
     "liquidity": (("adv_21", True), ("turnover_21", True)),
 }
 
@@ -61,7 +61,7 @@ def build_cross_sectional_factor_scores(
     missing = required - set(frame.columns)
     if missing:
         raise ValueError(f"missing factor identity columns: {sorted(missing)}")
-    out = frame.copy()
+    out = frame.copy().reset_index(drop=True)
     out[security_column] = out[security_column].astype(str).str.strip().str.upper()
     out[date_column] = pd.to_datetime(out[date_column], errors="coerce", utc=True)
     if out[security_column].eq("").any() or out[date_column].isna().any():

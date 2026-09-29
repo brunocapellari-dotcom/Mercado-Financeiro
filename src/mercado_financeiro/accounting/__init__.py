@@ -13,3 +13,12 @@ __all__ = [
     "PortfolioAccountingSnapshot",
     "PositionAccounting",
 ]
+
+from .tax import BrazilTaxRuleSet, TaxAccrual, TaxPeriodInput, calculate_brazil_tax_accrual
+
+__all__ += [
+    "BrazilTaxRuleSet",
+    "TaxAccrual",
+    "TaxPeriodInput",
+    "calculate_brazil_tax_accrual",
+]

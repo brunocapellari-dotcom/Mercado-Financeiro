@@ -104,3 +104,20 @@ __all__ += [
     "build_cross_sectional_factor_scores",
     "get_research_strategy",
 ]
+
+from .brazil_factor_model import BrazilFactorModelResult, fit_brazil_factor_model
+from .stress import (
+    HistoricalStressResult,
+    MonteCarloStressResult,
+    block_bootstrap_stress,
+    historical_window_stress,
+)
+
+__all__ += [
+    "BrazilFactorModelResult",
+    "HistoricalStressResult",
+    "MonteCarloStressResult",
+    "block_bootstrap_stress",
+    "fit_brazil_factor_model",
+    "historical_window_stress",
+]
