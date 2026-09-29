@@ -69,6 +69,26 @@ def deterministic_gate_plan(
         GateCommand("agent-stack-compatibility", (py, "scripts/check_agent_stack.py")),
         GateCommand("bandit-source", (py, "-m", "bandit", "-r", "src", "-ll")),
         GateCommand("dependency-audit", (py, "-m", "pip_audit")),
+        GateCommand(
+            "cyclonedx-sbom",
+            (
+                py,
+                "scripts/generate_sbom.py",
+                "--output",
+                "artifacts/gate/sbom.cdx.json",
+            ),
+        ),
+        GateCommand(
+            "build-provenance",
+            (
+                py,
+                "scripts/build_provenance.py",
+                "--sbom",
+                "artifacts/gate/sbom.cdx.json",
+                "--output",
+                "artifacts/gate/provenance.json",
+            ),
+        ),
     )
 
 
