@@ -34,6 +34,10 @@ agents = [
     "pydantic-ai-harness[dynamic-workflow]>=0.32,<0.33",
     "pydantic-evals>=2.46,<2.47",
 ]
+benchmark = [
+    "vectorbt>=1.1.1,<1.2",
+    "skfolio>=0.20.1,<0.21",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -60,3 +64,7 @@ no_implicit_optional = true
 warn_unused_configs = true
 show_error_codes = true
 pretty = true
+
+[tool.uv]
+required-version = ">=0.12.19,<0.13"
+exclude-newer = "2026-09-29T12:00:00Z"

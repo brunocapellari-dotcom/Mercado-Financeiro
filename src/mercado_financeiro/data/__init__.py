@@ -117,3 +117,11 @@ __all__ += [
     "SOURCE_CONTRACTS",
     "get_financial_source_contract",
 ]
+
+from .bcb_olinda import BCBMarketExpectationsSource, BCBPtaxSource, FocusEndpoint
+
+__all__ += [
+    "BCBMarketExpectationsSource",
+    "BCBPtaxSource",
+    "FocusEndpoint",
+]

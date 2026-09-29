@@ -151,3 +151,15 @@ __all__ = [
     "validate_security_master_scd2",
     "verified_historical_identity_evidence",
 ]
+
+from .accounting_normalization import (
+    CANONICAL_CVM_ACCOUNT_MAP,
+    CVMStatementSchema,
+    normalize_cvm_statement_rows,
+)
+
+__all__ += [
+    "CANONICAL_CVM_ACCOUNT_MAP",
+    "CVMStatementSchema",
+    "normalize_cvm_statement_rows",
+]

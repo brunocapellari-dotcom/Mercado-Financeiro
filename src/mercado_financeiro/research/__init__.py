@@ -92,3 +92,15 @@ __all__ = [
     "walk_forward_splits",
     "whites_reality_check",
 ]
+
+from .catalog import DEFAULT_RESEARCH_CATALOG, ResearchStrategySpec, get_research_strategy
+from .factors import FACTOR_COMPONENTS, FactorScoreAudit, build_cross_sectional_factor_scores
+
+__all__ += [
+    "DEFAULT_RESEARCH_CATALOG",
+    "FACTOR_COMPONENTS",
+    "FactorScoreAudit",
+    "ResearchStrategySpec",
+    "build_cross_sectional_factor_scores",
+    "get_research_strategy",
+]
