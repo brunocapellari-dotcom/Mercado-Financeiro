@@ -10,8 +10,8 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
-  security-events: write
 
 jobs:
   analyze:
@@ -27,7 +27,12 @@ jobs:
         with:
           languages: python
           queries: security-extended
-      - name: Analyze
+      - name: Analyze without external SARIF upload
         uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63
         with:
           category: /language:python
+          output: ${{ runner.temp }}/codeql-results
+          upload: never
+          upload-database: false
+      - name: Enforce high and critical CodeQL findings
+        run: python3 scripts/gate_codeql_sarif.py "${{ runner.temp }}/codeql-results" --threshold 7.0
