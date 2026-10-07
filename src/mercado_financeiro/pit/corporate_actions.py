@@ -179,9 +179,9 @@ def compute_total_returns(
         frame.at[index, "event_cash_per_old_share"] = event["cash"]
         frame.at[index, "event_share_ratio"] = event["share_ratio"]
         frame.at[index, "corporate_action_types"] = event["types"]
-        if float(event["cash"]) > 0:
+        if float(str(event["cash"])) > 0:
             cash_days += 1
-        if float(event["share_ratio"]) != 1.0:
+        if float(str(event["share_ratio"])) != 1.0:
             ratio_days += 1
         if bool(event["blocked"]):
             blocked_days += 1
