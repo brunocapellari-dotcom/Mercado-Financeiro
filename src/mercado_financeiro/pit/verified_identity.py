@@ -169,6 +169,15 @@ def enrich_historical_identity_with_verified_evidence(
     if out[["trade_date", "financial_volume"]].isna().any().any():
         raise ValueError("universe contains invalid trade date or financial volume")
 
+    if "identity_evidence_available_from" in out.columns:
+        out["identity_evidence_available_from"] = pd.to_datetime(
+            out["identity_evidence_available_from"], errors="coerce", utc=True
+        )
+    else:
+        out["identity_evidence_available_from"] = pd.Series(
+            pd.NaT, index=out.index, dtype="datetime64[ns, UTC]"
+        )
+
     evidence = evidence.rename(
         columns={
             "issuer_id": "verified_issuer_id",

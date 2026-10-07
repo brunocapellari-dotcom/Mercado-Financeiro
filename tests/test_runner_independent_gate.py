@@ -18,8 +18,8 @@ def test_gate_plan_preserves_whole_project_boundaries():
     sources = official_source_gate_plan("python-test")
     full = build_gate_plan("full", "python-test")
 
-    assert len(deterministic) == 9
-    assert len(sources) == 15
+    assert len(deterministic) == 12
+    assert len(sources) == 16
     assert full == deterministic + sources
     assert all(command.argv[0] == "python-test" for command in full)
     assert not any(command.network_required for command in deterministic)

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 import pandas as pd
+import pytest
 from mercado_financeiro.cloud import (
     AsOfQuerySpec, DataSLA, canonical_cloud_datasets, canonical_cloud_tables,
     compare_snapshots, compile_latest_asof_sql, evaluate_data_sla,
@@ -33,3 +34,14 @@ def test_snapshot_diff_and_sla_fail_closed():
     result=evaluate_data_sla(observed_at="2026-09-29T11:00:00Z",now="2026-09-29T12:00:00Z",current_rows=2,previous_rows=4,diff=diff,sla=DataSLA(max_age=pd.Timedelta(hours=2),max_row_drop_fraction=0.25))
     assert not result.approved
     assert {"row_count_drop","schema_drift"}.issubset(result.reasons)
+
+
+def test_asof_sql_rejects_untrusted_identifiers():
+    with pytest.raises(ValueError, match="unsafe identifier"):
+        AsOfQuerySpec("fundamentals;DROP_TABLE", ("security_id",))
+    with pytest.raises(ValueError, match="unsafe identifier"):
+        AsOfQuerySpec(
+            "fundamentals",
+            ("security_id",),
+            available_from="available_from) OR 1=1",
+        )

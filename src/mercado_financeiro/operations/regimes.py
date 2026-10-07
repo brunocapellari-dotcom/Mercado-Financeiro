@@ -39,6 +39,7 @@ def classify_market_regime(
     if annualized_volatility < 0:
         raise ValueError("annualized_volatility cannot be negative")
 
+    volatility: Literal["high", "normal", "low"]
     if annualized_volatility >= cfg.high_volatility:
         volatility = "high"
     elif annualized_volatility <= cfg.low_volatility:
@@ -46,6 +47,7 @@ def classify_market_regime(
     else:
         volatility = "normal"
 
+    rates: Literal["rising", "stable", "falling"]
     if rate_change_3m >= cfg.rate_change:
         rates = "rising"
     elif rate_change_3m <= -cfg.rate_change:
@@ -53,6 +55,7 @@ def classify_market_regime(
     else:
         rates = "stable"
 
+    inflation: Literal["high", "normal", "low"]
     if inflation_zscore >= cfg.inflation_z:
         inflation = "high"
     elif inflation_zscore <= -cfg.inflation_z:
@@ -60,7 +63,9 @@ def classify_market_regime(
     else:
         inflation = "normal"
 
-    risk = "risk_on" if broad_market_return > 0 and volatility != "high" else "risk_off"
+    risk: Literal["risk_on", "risk_off"] = (
+        "risk_on" if broad_market_return > 0 and volatility != "high" else "risk_off"
+    )
     return MarketRegime(
         risk=risk,
         volatility=volatility,
