@@ -23,12 +23,20 @@ from .release_gate import (
     evaluate_operational_readiness,
 )
 from .simulated import PaperFillRecord, SimulatedBrokerAdapter
+from .simulation import (
+    DeterministicSimulationSession,
+    SimulationEvent,
+    SimulationMode,
+    SimulationReport,
+    SimulationStep,
+)
 
 __all__ = [
     "Asset",
     "AttributionRecord",
     "AttributionReport",
     "CorporateAction",
+    "DeterministicSimulationSession",
     "Feature",
     "Fill",
     "Fundamental",
@@ -46,6 +54,10 @@ __all__ = [
     "RegimeThresholds",
     "Signal",
     "SimulatedBrokerAdapter",
+    "SimulationEvent",
+    "SimulationMode",
+    "SimulationReport",
+    "SimulationStep",
     "assert_operational_ready",
     "build_attribution",
     "capabilities_from_evidence",
