@@ -243,15 +243,30 @@ def normalize_fre_issued_shares(df: pd.DataFrame) -> pd.DataFrame:
 
     keys = ["issuer_id", "reference_date", "filing_version", "document_id"]
     counts = ["ordinary_issued", "preferred_issued", "total_issued"]
-    conflict = (
-        out.groupby(keys, dropna=False)[counts]
-        .nunique(dropna=False)
-        .gt(1)
-        .any(axis=1)
-    )
-    if conflict.any():
-        raise ValueError("conflicting FRE Capital Emitido rows within the same filing")
-    out = out.sort_values(keys, kind="stable").drop_duplicates(keys, keep="last")
+    selected: list[pd.DataFrame] = []
+    for _, group in out.groupby(keys, sort=False, dropna=False):
+        distinct_counts = group[counts].drop_duplicates()
+        if len(distinct_counts) > 1:
+            if group["capital_approval_date"].isna().any():
+                raise ValueError(
+                    "conflicting FRE Capital Emitido rows require dated alteration evidence"
+                )
+            latest_approval = group["capital_approval_date"].max()
+            group = group.loc[group["capital_approval_date"].eq(latest_approval)].copy()
+        else:
+            dated = group.loc[group["capital_approval_date"].notna()]
+            if not dated.empty:
+                latest_approval = dated["capital_approval_date"].max()
+                group = group.loc[group["capital_approval_date"].eq(latest_approval)].copy()
+
+        if len(group[counts].drop_duplicates()) > 1:
+            raise ValueError(
+                "conflicting FRE Capital Emitido rows at the same latest alteration date"
+            )
+        selected.append(group.tail(1))
+
+    out = pd.concat(selected, ignore_index=True)
+    out = out.sort_values(keys, kind="stable").reset_index(drop=True)
 
     for column in (
         "ordinary_treasury",

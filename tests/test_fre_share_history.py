@@ -4,6 +4,7 @@ from pathlib import Path
 import zipfile
 
 import pandas as pd
+import pytest
 
 from mercado_financeiro.pit import (
     audit_fre_capital_social,
@@ -70,6 +71,40 @@ def test_fre_capital_derives_one_missing_class_only_from_reported_total():
         )
     )
     assert issued.loc[0, "preferred_issued"] == 50
+
+
+def test_fre_capital_selects_latest_reported_alteration_within_same_filing():
+    issued = normalize_fre_issued_shares(
+        pd.DataFrame(
+            [
+                _capital(
+                    Data_Autorizacao_Aprovacao="2011-06-01",
+                    Quantidade_Acoes_Ordinarias="90",
+                    Quantidade_Acoes_Preferenciais="50",
+                    Quantidade_Total_Acoes="140",
+                ),
+                _capital(
+                    Data_Autorizacao_Aprovacao="2011-12-20",
+                    Quantidade_Acoes_Ordinarias="100",
+                    Quantidade_Acoes_Preferenciais="50",
+                    Quantidade_Total_Acoes="150",
+                ),
+            ]
+        )
+    )
+    assert len(issued) == 1
+    assert issued.loc[0, "ordinary_issued"] == 100
+    assert issued.loc[0, "total_issued"] == 150
+    assert issued.loc[0, "capital_approval_date"] == pd.Timestamp("2011-12-20")
+
+
+def test_fre_capital_rejects_conflict_at_same_latest_alteration_date():
+    rows = [
+        _capital(Quantidade_Acoes_Ordinarias="100", Quantidade_Total_Acoes="150"),
+        _capital(Quantidade_Acoes_Ordinarias="101", Quantidade_Total_Acoes="151"),
+    ]
+    with pytest.raises(ValueError, match="same latest alteration date"):
+        normalize_fre_issued_shares(pd.DataFrame(rows))
 
 
 def test_fre_reconciliation_resolves_explicit_on_and_pn_treasury():

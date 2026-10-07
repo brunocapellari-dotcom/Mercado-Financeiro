@@ -176,7 +176,7 @@ class B3PriceReportSource:
             source_url=url,
             retrieved_at=retrieved,
             parser_version="b3-price-report-v1",
-            content_type="application/zip",
+            content_type="application/zip" if payload[:2] == b"PK" else "application/xml",
         )
         frame = parse_b3_price_report(payload)
         frame["available_from"] = pd.Timestamp(retrieved).tz_convert("UTC")
@@ -190,6 +190,10 @@ class B3PriceReportSource:
             source_url=url,
             retrieved_at=retrieved,
             sha256=digest,
-            vintage_mode=VintageMode.EXACT_VINTAGE,
+            vintage_mode=(
+                VintageMode.EXACT_VINTAGE
+                if receipt is not None
+                else VintageMode.CONSERVATIVE_RETRIEVAL
+            ),
             frame=frame,
         )
