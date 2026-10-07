@@ -106,26 +106,29 @@ class DeterministicFullReconciler:
 
         order_mismatches: list[str] = []
         for order_id in sorted(set(internal.open_orders) | set(broker.open_orders)):
-            left = internal.open_orders.get(order_id)
-            right = broker.open_orders.get(order_id)
-            if left != right:
-                order_mismatches.append(f"{order_id}:{left!r}!={right!r}")
+            order_left = internal.open_orders.get(order_id)
+            order_right = broker.open_orders.get(order_id)
+            if order_left != order_right:
+                order_mismatches.append(
+                    f"{order_id}:{order_left!r}!={order_right!r}"
+                )
 
         fill_mismatches: list[str] = []
         for fill_id in sorted(set(internal.fills) | set(broker.fills)):
-            left = internal.fills.get(fill_id)
-            right = broker.fills.get(fill_id)
-            if left is None or right is None:
-                fill_mismatches.append(f"{fill_id}:missing_on_{'internal' if left is None else 'broker'}")
+            fill_left = internal.fills.get(fill_id)
+            fill_right = broker.fills.get(fill_id)
+            if fill_left is None or fill_right is None:
+                missing_side = "internal" if fill_left is None else "broker"
+                fill_mismatches.append(f"{fill_id}:missing_on_{missing_side}")
                 continue
-            if left.instrument != right.instrument:
+            if fill_left.instrument != fill_right.instrument:
                 fill_mismatches.append(f"{fill_id}:instrument")
                 continue
-            if abs(left.quantity - right.quantity) > self._fill_quantity_tolerance:
+            if abs(fill_left.quantity - fill_right.quantity) > self._fill_quantity_tolerance:
                 fill_mismatches.append(f"{fill_id}:quantity")
-            if abs(left.price - right.price) > self._fill_price_tolerance:
+            if abs(fill_left.price - fill_right.price) > self._fill_price_tolerance:
                 fill_mismatches.append(f"{fill_id}:price")
-            if abs(left.fee - right.fee) > self._fee_tolerance:
+            if abs(fill_left.fee - fill_right.fee) > self._fee_tolerance:
                 fill_mismatches.append(f"{fill_id}:fee")
 
         approved = (

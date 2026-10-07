@@ -84,6 +84,8 @@ class AnbimaFeedSource:
         expires_in = response.get("expires_in") if isinstance(response, dict) else None
         if not isinstance(token, str) or not token:
             raise ValueError("ANBIMA OAuth response has no access_token")
+        if isinstance(expires_in, bool) or not isinstance(expires_in, (str, int, float)):
+            raise ValueError("ANBIMA OAuth response has invalid expires_in")
         try:
             lifetime = int(expires_in)
         except (TypeError, ValueError) as exc:

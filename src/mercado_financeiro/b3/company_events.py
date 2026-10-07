@@ -275,6 +275,7 @@ def b3_cash_actions_to_canonical(
             unresolved.append({**row, "canonical_status": reason})
             continue
 
+        assert effective_date is not None
         action_type = _cash_action_type(row.get("event_type_raw"))
         event_key = "|".join(
             [
