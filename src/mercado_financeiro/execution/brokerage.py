@@ -32,6 +32,7 @@ class BrokerageCostSchedule:
     impact_bps_per_adv_fraction: Decimal = Decimal("0")
     max_adv_participation: Decimal = Decimal("0.05")
     settlement_business_days: int = 2
+    allow_partial_fills: bool = False
 
     def __post_init__(self) -> None:
         for name, value in (
@@ -117,8 +118,17 @@ class DeterministicBrokerageModel:
             return self._rejected("stale_market_data")
         if not market.trading_open:
             return self._rejected("market_closed")
-        if order.quantity > market.available_quantity:
+        if market.available_quantity <= 0:
             return self._rejected("insufficient_visible_liquidity")
+
+        fill_quantity = order.quantity
+        partial = False
+        if order.quantity > market.available_quantity:
+            if not self._schedule.allow_partial_fills:
+                return self._rejected("insufficient_visible_liquidity")
+            fill_quantity = market.available_quantity
+            partial = True
+
         if market.adv_notional <= 0:
             return self._rejected("adv_unavailable")
         if self._schedule.settlement_business_days > 0:
@@ -127,7 +137,7 @@ class DeterministicBrokerageModel:
                 return self._rejected("verified_settlement_calendar_unavailable")
 
         reference = market.ask if order.side == "buy" else market.bid
-        reference_notional = reference * order.quantity
+        reference_notional = reference * fill_quantity
         participation = reference_notional / market.adv_notional
         if participation > self._schedule.max_adv_participation:
             return self._rejected("max_adv_participation_exceeded")
@@ -144,7 +154,7 @@ class DeterministicBrokerageModel:
         if fill_price <= 0:
             return self._rejected("invalid_simulated_fill_price")
 
-        gross = fill_price * order.quantity
+        gross = fill_price * fill_quantity
         fee = max(
             self._schedule.minimum_fee,
             self._schedule.fixed_fee + gross * self._schedule.fee_bps / Decimal("10000"),
@@ -162,8 +172,8 @@ class DeterministicBrokerageModel:
             settlement = market.timestamp
         return SimulatedFill(
             filled=True,
-            reason="filled",
-            quantity=order.quantity,
+            reason="partial_fill" if partial else "filled",
+            quantity=fill_quantity,
             fill_price=fill_price,
             fee=fee,
             slippage_bps=slip_bps,
