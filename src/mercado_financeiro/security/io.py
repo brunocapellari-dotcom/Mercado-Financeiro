@@ -7,7 +7,7 @@ from pathlib import PurePosixPath
 import re
 import stat
 import time
-from typing import Iterable, Mapping
+from typing import Callable, Iterable, Mapping
 import urllib.error
 from urllib.parse import urlsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -272,7 +272,7 @@ def download_https_with_retry(
             if exc.code not in retry_policy.retry_http_statuses:
                 raise
             last = exc
-        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as exc:
+        except (urllib.error.URLError, TimeoutError, ConnectionError, OSError, ValueError) as exc:
             last = exc
 
         if attempt < retry_policy.attempts and delay > 0:
