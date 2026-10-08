@@ -63,7 +63,7 @@ def _load_fca(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     name_frames: list[pd.DataFrame] = []
     for year in range(2010, 2027):
         target = root / f"fca_{year}.zip"
-        target.write_bytes(_get(FCA_URL.format(year=year)))
+        target.write_bytes(_get(FCA_URL.format(year=year), require_zip=True))
         ticker_frame, ticker_audit = audit_fca_ticker_issuer_bridge(target, year)
         ticker_frames.append(ticker_frame)
 
@@ -107,7 +107,7 @@ def _load_registries() -> tuple[pd.DataFrame, pd.DataFrame, dict[str, object]]:
     meta = json.loads(_get(META_URL))
     current_file_id = meta["geralPt"]["id"]
     current_generated_at = pd.Timestamp(meta["geralPt"]["dataGeracao"])
-    current_payload = _get(FILE_URL.format(token=_token(current_file_id)))
+    current_payload = _get(FILE_URL.format(token=_token(current_file_id)), require_zip=True)
     current_digest = sha256(current_payload).hexdigest()
     emissor, emissor_audit = parse_b3_emissor_zip(
         current_payload,
@@ -128,7 +128,7 @@ def _load_registries() -> tuple[pd.DataFrame, pd.DataFrame, dict[str, object]]:
         "archive_available": False,
     }
     try:
-        archive_payload = _get(FILE_URL.format(token=_token(ARCHIVED_B3_FILE_ID)), attempts=1)
+        archive_payload = _get(FILE_URL.format(token=_token(ARCHIVED_B3_FILE_ID)), attempts=1, require_zip=True)
     except RuntimeError as exc:
         print(
             "B3_ARCHIVE_UNAVAILABLE "
@@ -219,7 +219,7 @@ def main() -> None:
 
         for year in range(2011, 2027):
             path = root / f"COTAHIST_A{year}.ZIP"
-            path.write_bytes(_get(COTAHIST_URL.format(year=year)))
+            path.write_bytes(_get(COTAHIST_URL.format(year=year), require_zip=True))
             quotes, quote_audit = select_regular_share_quotes(read_cotahist(path))
 
             historical, baseline = build_tradable_universe_pit(
