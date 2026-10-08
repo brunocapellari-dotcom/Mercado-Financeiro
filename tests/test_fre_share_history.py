@@ -136,6 +136,25 @@ def test_legacy_negative_treasury_quantity_is_preserved_and_blocks_valuation():
     assert reconciled.loc[0, "shares_status"] == "invalid_treasury_source"
 
 
+def test_fre_treasury_exceeding_issued_capital_blocks_only_that_filing():
+    issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
+    legacy = pd.DataFrame(
+        [
+            _legacy_treasury("Ordinária", 101, acquisition_date="2011-05-01"),
+            _legacy_treasury(
+                "Preferencial",
+                0,
+                acquisition_date="2011-05-01",
+                preferred_type="PN",
+            ),
+        ]
+    )
+    treasury = normalize_fre_treasury_shares(legacy)
+    reconciled = reconcile_fre_issued_and_treasury(issued, treasury)
+    assert not bool(reconciled.loc[0, "eligible_for_valuation"])
+    assert reconciled.loc[0, "shares_status"] == "treasury_exceeds_issued"
+
+
 def test_fre_capital_keeps_approval_as_metadata_and_blocks_valuation_without_treasury():
     issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
     assert issued.loc[0, "ordinary_issued"] == 100
