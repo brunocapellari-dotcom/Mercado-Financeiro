@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 
 import pandas as pd
 
-from mercado_financeiro.security import DownloadPolicy, download_https
+from mercado_financeiro.security import DownloadPolicy, RetryPolicy, download_https_with_retry
 from .historical import HistoricalDataset, VintageMode, require_pit_columns
 
 
@@ -59,7 +59,15 @@ class BCBSgsSource:
         if publication_lag_days is not None and publication_lag_days < 0:
             raise ValueError("publication_lag_days cannot be negative")
         url = self.build_url(series_code, start=start, end=end)
-        payload = download_https(url, self._policy)
+        payload = download_https_with_retry(
+            url,
+            self._policy,
+            retry_policy=RetryPolicy(
+                attempts=5,
+                initial_delay_seconds=1.0,
+                max_delay_seconds=8.0,
+            ),
+        )
         retrieved = retrieved_at or datetime.now(timezone.utc)
         if retrieved.tzinfo is None or retrieved.utcoffset() is None:
             raise ValueError("retrieved_at must be timezone-aware")
