@@ -18,7 +18,10 @@ def test_bcb_defaults_to_conservative_retrieval(monkeypatch):
     payload = json.dumps(
         [{"data": "01/09/2026", "valor": "14.90"}, {"data": "02/09/2026", "valor": "14,91"}]
     ).encode()
-    monkeypatch.setattr(\n        "mercado_financeiro.data.bcb.download_https_with_retry",\n        lambda url, policy, **kwargs: payload,\n    )
+    monkeypatch.setattr(
+        "mercado_financeiro.data.bcb.download_https_with_retry",
+        lambda url, policy, **kwargs: payload,
+    )
     retrieved = datetime(2026, 9, 15, 12, 0, tzinfo=timezone.utc)
     dataset = BCBSgsSource().fetch(1178, retrieved_at=retrieved)
     assert dataset.vintage_mode == VintageMode.CONSERVATIVE_RETRIEVAL
@@ -29,7 +32,10 @@ def test_bcb_defaults_to_conservative_retrieval(monkeypatch):
 
 def test_bcb_future_effective_value_can_be_known_before_reference_date(monkeypatch):
     payload = b'[{"data":"16/09/2026","valor":"14.75"}]'
-    monkeypatch.setattr(\n        "mercado_financeiro.data.bcb.download_https_with_retry",\n        lambda url, policy, **kwargs: payload,\n    )
+    monkeypatch.setattr(
+        "mercado_financeiro.data.bcb.download_https_with_retry",
+        lambda url, policy, **kwargs: payload,
+    )
     retrieved = datetime(2026, 9, 15, 15, 0, tzinfo=timezone.utc)
     dataset = BCBSgsSource().fetch(432, retrieved_at=retrieved)
     row = dataset.frame.iloc[0]
@@ -41,7 +47,10 @@ def test_bcb_future_effective_value_can_be_known_before_reference_date(monkeypat
 
 def test_bcb_publication_lag_must_be_explicit(monkeypatch):
     payload = b'[{"data":"01/09/2026","valor":"1.0"}]'
-    monkeypatch.setattr(\n        "mercado_financeiro.data.bcb.download_https_with_retry",\n        lambda url, policy, **kwargs: payload,\n    )
+    monkeypatch.setattr(
+        "mercado_financeiro.data.bcb.download_https_with_retry",
+        lambda url, policy, **kwargs: payload,
+    )
     dataset = BCBSgsSource().fetch(1, publication_lag_days=1)
     assert dataset.vintage_mode == VintageMode.PUBLICATION_GATED
     assert dataset.frame.loc[0, "available_from"] == pd.Timestamp("2026-09-02", tz="UTC")
