@@ -246,13 +246,17 @@ def download_https_with_retry(
     *,
     retry_policy: RetryPolicy | None = None,
     headers: Mapping[str, str] | None = None,
+    payload_validator: Callable[[bytes], None] | None = None,
 ) -> bytes:
     """Download an allowlisted HTTPS source with bounded exponential backoff.
 
-    A non-empty response is required. HTTP 403 is included because several public
-    B3 historical endpoints intermittently reject otherwise identical automated
-    requests; the retry remains bounded and never changes host, URL, credentials,
-    or canonical source. Permanent policy violations are never retried.
+    A non-empty response is required. Callers may provide a payload validator for
+    transport-success/content-failure cases, such as an HTML error page returned
+    with HTTP 200 where a ZIP was expected. Validator OSError/ValueError failures
+    are retried with the same bounded policy; SourceSecurityError remains fail-closed.
+    HTTP 403 is included because several public B3 historical endpoints intermittently
+    reject otherwise identical automated requests. The retry never changes host,
+    URL, credentials, or canonical source.
     """
 
     policy = policy or DownloadPolicy()
@@ -265,6 +269,8 @@ def download_https_with_retry(
             payload = download_https(url, policy, headers=headers)
             if not payload:
                 raise OSError("official source returned empty response")
+            if payload_validator is not None:
+                payload_validator(payload)
             return payload
         except SourceSecurityError:
             raise
@@ -282,7 +288,6 @@ def download_https_with_retry(
     raise RuntimeError(
         f"official source unavailable after {retry_policy.attempts} attempts: {url}"
     ) from last
-
 
 def _member_is_symlink(info: zipfile.ZipInfo) -> bool:
     mode = (info.external_attr >> 16) & 0xFFFF
