@@ -98,15 +98,14 @@ def test_legacy_fre_treasury_aggregates_acquisition_lots_by_share_class():
 
 def test_legacy_fre_treasury_preserves_unknown_positive_class_as_unsupported():
     issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
-    legacy = pd.DataFrame(
-        [
-            _legacy_treasury(
-                "Outro valor mobiliário",
-                2,
-                acquisition_date="2011-07-01",
-            )
-        ]
+    row = _legacy_treasury(
+        "Outro valor mobiliário",
+        2,
+        acquisition_date="2011-07-01",
     )
+    row["Valor_Mobiliario"] = "Outro"
+    row["Descricao_Valor_Mobiliario"] = "Outro"
+    legacy = pd.DataFrame([row])
     treasury = normalize_fre_treasury_shares(legacy)
     assert treasury.loc[0, "treasury_class"] == "unsupported"
 
