@@ -48,6 +48,73 @@ def _treasury(share_class: str, count: int) -> dict[str, object]:
     }
 
 
+def _legacy_treasury(
+    share_class: str,
+    count: int,
+    *,
+    acquisition_date: str,
+    preferred_type: str = "",
+) -> dict[str, object]:
+    return {
+        "CNPJ_Companhia": "00.000.000/0001-91",
+        "Data_Referencia": "2011-12-31",
+        "Versao": "1",
+        "ID_Documento": "101",
+        "available_from": "2012-03-15",
+        "Valor_Mobiliario": "Ações",
+        "Especie_Acao": share_class,
+        "Tipo_Classe_Acao_Preferencial": preferred_type,
+        "Descricao_Valor_Mobiliario": "Ações em tesouraria",
+        "Data_Aquisicao": acquisition_date,
+        "Quantidade_Valor_Mobiliario": str(count),
+    }
+
+
+def test_legacy_fre_treasury_aggregates_acquisition_lots_by_share_class():
+    issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
+    legacy = pd.DataFrame(
+        [
+            _legacy_treasury("Ordinária", 6, acquisition_date="2011-04-01"),
+            _legacy_treasury("Ordinária", 4, acquisition_date="2011-09-01"),
+            _legacy_treasury(
+                "Preferencial",
+                5,
+                acquisition_date="2011-06-01",
+                preferred_type="PN",
+            ),
+        ]
+    )
+
+    treasury = normalize_fre_treasury_shares(legacy)
+    by_class = treasury.groupby("treasury_class")["treasury_count"].sum().to_dict()
+    assert by_class == {"ordinary": 10, "preferred": 5}
+
+    reconciled = reconcile_fre_issued_and_treasury(issued, treasury)
+    assert reconciled.loc[0, "ordinary_treasury"] == 10
+    assert reconciled.loc[0, "preferred_treasury"] == 5
+    assert reconciled.loc[0, "total_outstanding"] == 135
+    assert bool(reconciled.loc[0, "eligible_for_valuation"])
+
+
+def test_legacy_fre_treasury_preserves_unknown_positive_class_as_unsupported():
+    issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
+    legacy = pd.DataFrame(
+        [
+            _legacy_treasury(
+                "Outro valor mobiliário",
+                2,
+                acquisition_date="2011-07-01",
+            )
+        ]
+    )
+    treasury = normalize_fre_treasury_shares(legacy)
+    assert treasury.loc[0, "treasury_class"] == "unsupported"
+
+    reconciled = reconcile_fre_issued_and_treasury(issued, treasury)
+    assert not bool(reconciled.loc[0, "eligible_for_valuation"])
+    assert reconciled.loc[0, "shares_status"] == "unsupported_treasury_class"
+
+
 def test_fre_capital_keeps_approval_as_metadata_and_blocks_valuation_without_treasury():
     issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
     assert issued.loc[0, "ordinary_issued"] == 100
