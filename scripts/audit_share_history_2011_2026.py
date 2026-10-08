@@ -65,12 +65,17 @@ def main() -> None:
             resolved_rows = 0
             ambiguous_rows = 0
             incomplete_rows = 0
+            invalid_treasury_groups = 0
             if treasury_member_present:
                 treasury_raw, treasury_audit = audit_fre_treasury_last_exercise(path, year)
                 treasury = normalize_fre_treasury_shares(treasury_raw)
                 reconciled = reconcile_fre_issued_and_treasury(issued, treasury)
                 treasury_rows = treasury_audit.rows
                 treasury_final_rows = len(treasury)
+                if "treasury_status" in treasury.columns:
+                    invalid_treasury_groups = int(
+                        treasury["treasury_status"].astype(str).ne("valid").sum()
+                    )
                 resolved_rows = int(
                     reconciled["eligible_for_valuation"].fillna(False).sum()
                 )
@@ -88,6 +93,7 @@ def main() -> None:
                             "treasury_class_incomplete",
                             "unsupported_treasury_class",
                             "issued_only_treasury_unavailable",
+                            "invalid_treasury_source",
                         ]
                     )
                     .sum()
@@ -111,6 +117,7 @@ def main() -> None:
                 ),
                 "ambiguous_aggregate_treasury_rows": ambiguous_rows,
                 "incomplete_treasury_rows": incomplete_rows,
+                "invalid_treasury_groups": invalid_treasury_groups,
             }
             annual.append(record)
             print("FRE_SHARE_YEAR " + json.dumps(record, sort_keys=True))
