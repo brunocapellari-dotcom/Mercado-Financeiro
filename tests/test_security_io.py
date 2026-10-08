@@ -90,6 +90,33 @@ def test_retry_recovers_transient_public_source_failure(monkeypatch):
     assert len(attempts) == 2
 
 
+def test_retry_retries_transient_invalid_payload(monkeypatch):
+    calls = 0
+
+    def fake_download(url, policy=None, *, headers=None):
+        nonlocal calls
+        calls += 1
+        return b"<html>temporary upstream error</html>" if calls == 1 else _zip({"ok.txt": b"ok"})
+
+    def require_zip(payload: bytes) -> None:
+        if not payload.startswith(b"PK"):
+            raise OSError("expected ZIP payload")
+        validate_zip_bytes(payload)
+
+    monkeypatch.setattr(security_io, "download_https", fake_download)
+    result = download_https_with_retry(
+        "https://bvmf.bmfbovespa.com.br/example.zip",
+        retry_policy=RetryPolicy(
+            attempts=2,
+            initial_delay_seconds=0,
+            max_delay_seconds=0,
+        ),
+        payload_validator=require_zip,
+    )
+    assert result.startswith(b"PK")
+    assert calls == 2
+
+
 def test_retry_does_not_mask_permanent_http_or_security_failures(monkeypatch):
     calls = 0
 
