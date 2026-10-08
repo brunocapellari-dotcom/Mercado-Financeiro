@@ -30,6 +30,7 @@ from mercado_financeiro.security import (
     DownloadPolicy,
     RetryPolicy,
     download_https_with_retry,
+    validate_zip_bytes,
 )
 
 FCA_URL = "https://dados.cvm.gov.br/dados/CIA_ABERTA/DOC/FCA/DADOS/fca_cia_aberta_{year}.zip"
