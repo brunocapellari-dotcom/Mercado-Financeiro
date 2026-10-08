@@ -46,7 +46,13 @@ def _token(file_id: int | str) -> str:
     return base64.b64encode(json.dumps(file_id, separators=(",", ":")).encode()).decode()
 
 
-def _get(url: str, attempts: int = 5) -> bytes:
+def _require_zip_payload(payload: bytes) -> None:
+    if not payload.startswith(b"PK"):
+        raise OSError("official source returned a non-ZIP payload")
+    validate_zip_bytes(payload)
+
+
+def _get(url: str, attempts: int = 5, *, require_zip: bool = False) -> bytes:
     return download_https_with_retry(
         url,
         _SOURCE_POLICY,
@@ -55,8 +61,8 @@ def _get(url: str, attempts: int = 5) -> bytes:
             initial_delay_seconds=2.0,
             max_delay_seconds=20.0,
         ),
+        payload_validator=_require_zip_payload if require_zip else None,
     )
-
 
 def _load_fca(root: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
     ticker_frames: list[pd.DataFrame] = []
