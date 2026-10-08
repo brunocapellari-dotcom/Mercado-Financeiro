@@ -355,7 +355,9 @@ def normalize_fre_treasury_shares(df: pd.DataFrame) -> pd.DataFrame:
         "document_id",
         "treasury_class",
         "treasury_count",
+        "treasury_raw_count",
         "treasury_raw_class",
+        "treasury_status",
     ]
 
     if modern:
@@ -369,6 +371,8 @@ def normalize_fre_treasury_shares(df: pd.DataFrame) -> pd.DataFrame:
         )
         out["treasury_raw_class"] = out["Classe_Valor_Mobiliario"].astype(str).str.strip()
         out["treasury_class"] = out["Classe_Valor_Mobiliario"].map(_treasury_class)
+        out["treasury_raw_count"] = out["treasury_count"]
+        out["treasury_status"] = "valid"
 
         keys = [
             "issuer_id",
@@ -388,28 +392,13 @@ def normalize_fre_treasury_shares(df: pd.DataFrame) -> pd.DataFrame:
     legacy_counts = pd.to_numeric(out["Quantidade_Valor_Mobiliario"], errors="coerce")
     if legacy_counts.isna().any():
         raise ValueError("Quantidade_Valor_Mobiliario contains null/non-numeric values")
-    negative = legacy_counts < 0
-    if negative.any():
-        sample_columns = [
-            column
-            for column in (
-                "Data_Aquisicao",
-                "Valor_Mobiliario",
-                "Especie_Acao",
-                "Descricao_Valor_Mobiliario",
-                "Tipo_Classe_Acao_Preferencial",
-                "Quantidade_Valor_Mobiliario",
-            )
-            if column in out.columns
-        ]
-        sample = out.loc[negative, sample_columns].head(12).to_dict(orient="records")
-        raise ValueError(
-            "legacy FRE treasury contains negative Quantidade_Valor_Mobiliario; "
-            f"sample={sample}"
-        )
     if ((legacy_counts % 1) != 0).any():
         raise ValueError("Quantidade_Valor_Mobiliario contains non-integral share counts")
-    out["treasury_count"] = legacy_counts.astype("int64")
+    out["treasury_raw_count"] = legacy_counts.astype("int64")
+    negative = legacy_counts < 0
+    out["treasury_status"] = "valid"
+    out.loc[negative, "treasury_status"] = "invalid_negative_quantity"
+    out["treasury_count"] = legacy_counts.where(~negative).astype("Int64")
 
     legacy_class_fields = (
         "Especie_Acao",
@@ -459,14 +448,39 @@ def normalize_fre_treasury_shares(df: pd.DataFrame) -> pd.DataFrame:
         "treasury_class",
         "treasury_raw_class",
     ]
-    out = (
-        out.groupby(group_keys, as_index=False, dropna=False)
-        .agg(
-            available_from=("available_from", "max"),
-            treasury_count=("treasury_count", "sum"),
+    valid = out.loc[out["treasury_status"].eq("valid")].copy()
+    invalid = out.loc[~out["treasury_status"].eq("valid")].copy()
+
+    grouped_frames: list[pd.DataFrame] = []
+    if not valid.empty:
+        grouped_frames.append(
+            valid.groupby(group_keys + ["treasury_status"], as_index=False, dropna=False)
+            .agg(
+                available_from=("available_from", "max"),
+                treasury_count=("treasury_count", "sum"),
+                treasury_raw_count=("treasury_raw_count", "sum"),
+            )
+            .reset_index(drop=True)
         )
-        .reset_index(drop=True)
-    )
+    if not invalid.empty:
+        invalid_grouped = (
+            invalid.groupby(
+                group_keys + ["treasury_status"],
+                as_index=False,
+                dropna=False,
+            )
+            .agg(
+                available_from=("available_from", "max"),
+                treasury_raw_count=("treasury_raw_count", "sum"),
+            )
+            .reset_index(drop=True)
+        )
+        invalid_grouped["treasury_count"] = pd.NA
+        grouped_frames.append(invalid_grouped)
+
+    if not grouped_frames:
+        return pd.DataFrame(columns=output_columns)
+    out = pd.concat(grouped_frames, ignore_index=True, sort=False)
     return out[output_columns].reset_index(drop=True)
 
 
@@ -531,6 +545,16 @@ def reconcile_fre_issued_and_treasury(
             pd.Timestamp(row["available_from"]),
             pd.Timestamp(evidence["available_from"].max()),
         )
+        if "treasury_status" in evidence.columns:
+            invalid_status = (
+                evidence["treasury_status"].fillna("invalid_unknown").astype(str).ne("valid")
+            )
+            if invalid_status.any():
+                out.at[index, "shares_status"] = "invalid_treasury_source"
+                continue
+        if evidence["treasury_count"].isna().any():
+            out.at[index, "shares_status"] = "invalid_treasury_source"
+            continue
         if (
             evidence.loc[evidence["treasury_class"].eq("unsupported"), "treasury_count"]
             .gt(0)
