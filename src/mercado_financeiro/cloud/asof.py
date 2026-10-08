@@ -36,7 +36,7 @@ def compile_latest_asof_sql(spec: AsOfQuerySpec, *, dialect: Dialect) -> str:
     ordering = [f"{quote(spec.available_from)} DESC", *(f"{quote(v)} DESC" for v in spec.tie_breakers)]
     # All identifiers are restricted by _id(); cutoff remains a bound parameter.
     return (  # nosec B608
-        "SELECT * FROM " + quote(spec.table) + " WHERE " + quote(spec.available_from)
+        "SELECT * FROM " + quote(spec.table) + " WHERE " + quote(spec.available_from)  # nosec B608
         + f" <= {parameter} QUALIFY ROW_NUMBER() OVER (PARTITION BY "
         + partition + " ORDER BY " + ", ".join(ordering) + ") = 1"
     )
