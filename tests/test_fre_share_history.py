@@ -114,6 +114,28 @@ def test_legacy_fre_treasury_preserves_unknown_positive_class_as_unsupported():
     assert reconciled.loc[0, "shares_status"] == "unsupported_treasury_class"
 
 
+def test_legacy_negative_treasury_quantity_is_preserved_and_blocks_valuation():
+    issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
+    legacy = pd.DataFrame(
+        [
+            _legacy_treasury(
+                "Ordinária",
+                -7,
+                acquisition_date="2011-05-01",
+            )
+        ]
+    )
+
+    treasury = normalize_fre_treasury_shares(legacy)
+    assert treasury.loc[0, "treasury_raw_count"] == -7
+    assert pd.isna(treasury.loc[0, "treasury_count"])
+    assert treasury.loc[0, "treasury_status"] == "invalid_negative_quantity"
+
+    reconciled = reconcile_fre_issued_and_treasury(issued, treasury)
+    assert not bool(reconciled.loc[0, "eligible_for_valuation"])
+    assert reconciled.loc[0, "shares_status"] == "invalid_treasury_source"
+
+
 def test_fre_capital_keeps_approval_as_metadata_and_blocks_valuation_without_treasury():
     issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
     assert issued.loc[0, "ordinary_issued"] == 100
