@@ -582,17 +582,20 @@ def reconcile_fre_issued_and_treasury(
             if ordinary_present and preferred_present:
                 assert ordinary_treasury is not None and preferred_treasury is not None
                 if aggregate_treasury != ordinary_treasury + preferred_treasury:
-                    raise ValueError("aggregate FRE treasury total disagrees with ON+PN treasury")
+                    out.at[index, "shares_status"] = "treasury_aggregate_inconsistent"
+                    continue
             elif ordinary_present:
                 assert ordinary_treasury is not None
                 preferred_treasury = aggregate_treasury - ordinary_treasury
                 if preferred_treasury < 0:
-                    raise ValueError("aggregate FRE treasury smaller than ordinary treasury")
+                    out.at[index, "shares_status"] = "treasury_aggregate_inconsistent"
+                    continue
             elif preferred_present:
                 assert preferred_treasury is not None
                 ordinary_treasury = aggregate_treasury - preferred_treasury
                 if ordinary_treasury < 0:
-                    raise ValueError("aggregate FRE treasury smaller than preferred treasury")
+                    out.at[index, "shares_status"] = "treasury_aggregate_inconsistent"
+                    continue
             elif aggregate_treasury == 0:
                 ordinary_treasury = 0
                 preferred_treasury = 0
@@ -615,10 +618,9 @@ def reconcile_fre_issued_and_treasury(
                 continue
 
         assert ordinary_treasury is not None and preferred_treasury is not None
-        if ordinary_treasury > ordinary_issued:
-            raise ValueError("ordinary FRE treasury shares exceed issued shares")
-        if preferred_treasury > preferred_issued:
-            raise ValueError("preferred FRE treasury shares exceed issued shares")
+        if ordinary_treasury > ordinary_issued or preferred_treasury > preferred_issued:
+            out.at[index, "shares_status"] = "treasury_exceeds_issued"
+            continue
 
         total_treasury = ordinary_treasury + preferred_treasury
         out.at[index, "ordinary_treasury"] = ordinary_treasury
