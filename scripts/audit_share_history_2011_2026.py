@@ -94,6 +94,8 @@ def main() -> None:
                             "unsupported_treasury_class",
                             "issued_only_treasury_unavailable",
                             "invalid_treasury_source",
+                            "treasury_exceeds_issued",
+                            "treasury_aggregate_inconsistent",
                         ]
                     )
                     .sum()
