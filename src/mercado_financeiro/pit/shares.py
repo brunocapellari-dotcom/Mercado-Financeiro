@@ -385,9 +385,31 @@ def normalize_fre_treasury_shares(df: pd.DataFrame) -> pd.DataFrame:
             out = out.drop_duplicates(keys, keep="last")
         return out[output_columns].reset_index(drop=True)
 
-    out["treasury_count"] = _numeric_nonnegative_integral(
-        out["Quantidade_Valor_Mobiliario"], "Quantidade_Valor_Mobiliario"
-    )
+    legacy_counts = pd.to_numeric(out["Quantidade_Valor_Mobiliario"], errors="coerce")
+    if legacy_counts.isna().any():
+        raise ValueError("Quantidade_Valor_Mobiliario contains null/non-numeric values")
+    negative = legacy_counts < 0
+    if negative.any():
+        sample_columns = [
+            column
+            for column in (
+                "Data_Aquisicao",
+                "Valor_Mobiliario",
+                "Especie_Acao",
+                "Descricao_Valor_Mobiliario",
+                "Tipo_Classe_Acao_Preferencial",
+                "Quantidade_Valor_Mobiliario",
+            )
+            if column in out.columns
+        ]
+        sample = out.loc[negative, sample_columns].head(12).to_dict(orient="records")
+        raise ValueError(
+            "legacy FRE treasury contains negative Quantidade_Valor_Mobiliario; "
+            f"sample={sample}"
+        )
+    if ((legacy_counts % 1) != 0).any():
+        raise ValueError("Quantidade_Valor_Mobiliario contains non-integral share counts")
+    out["treasury_count"] = legacy_counts.astype("int64")
 
     legacy_class_fields = (
         "Especie_Acao",
