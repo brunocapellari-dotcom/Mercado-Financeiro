@@ -298,36 +298,42 @@ def _treasury_class(value: object) -> str:
 
 
 def normalize_fre_treasury_shares(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalize FRE end-of-exercise treasury-share observations.
+    """Normalize modern and legacy FRE end-of-exercise treasury observations.
 
-    The source may report ON/PN separately, an aggregate ``Ação`` balance, or both.
-    Ambiguous aggregate balances remain explicit and are resolved only when the issued
-    capital composition mathematically determines the allocation.
+    Modern vintages report an explicit end-of-exercise history field and one treasury
+    balance by security class. Legacy vintages use the old Item 19.3 layout: the file
+    itself is already the end-of-last-fiscal-year snapshot and can contain multiple
+    acquisition lots. Those lots are summed by class. Unknown class evidence is
+    preserved as unsupported so valuation fails closed downstream.
     """
-    missing = _REQUIRED_FRE_TREASURY_COLUMNS - set(df.columns)
-    if missing:
+
+    base_required = {
+        "CNPJ_Companhia",
+        "Data_Referencia",
+        "Versao",
+        "ID_Documento",
+        "available_from",
+    }
+    missing_base = base_required - set(df.columns)
+    if missing_base:
+        raise ValueError(f"missing FRE treasury identity columns: {sorted(missing_base)}")
+
+    modern_fields = {
+        "Classe_Valor_Mobiliario",
+        "Historico_Exercicio",
+        "Quantidade_Acoes_Tesouraria",
+    }
+    legacy_fields = {"Quantidade_Valor_Mobiliario"}
+    modern = modern_fields.issubset(df.columns)
+    legacy = legacy_fields.issubset(df.columns)
+    if not modern and not legacy:
+        expected = sorted(modern_fields | legacy_fields)
         raise ValueError(
-            f"missing FRE treasury columns: {sorted(missing)}; "
+            f"unsupported FRE treasury schema; expected modern or legacy fields from {expected}; "
             f"observed={sorted(map(str, df.columns))}"
         )
 
     out = df.copy()
-    final_balance = out["Historico_Exercicio"].map(_normalized_text).eq("SALDO FINAL")
-    out = out.loc[final_balance].copy()
-    if out.empty:
-        return pd.DataFrame(
-            columns=[
-                "issuer_id",
-                "reference_date",
-                "available_from",
-                "filing_version",
-                "document_id",
-                "treasury_class",
-                "treasury_count",
-                "treasury_raw_class",
-            ]
-        )
-
     out["reference_date"] = pd.to_datetime(out["Data_Referencia"], errors="coerce")
     out["available_from"] = pd.to_datetime(out["available_from"], errors="coerce")
     out["filing_version"] = pd.to_numeric(out["Versao"], errors="coerce")
@@ -338,38 +344,108 @@ def normalize_fre_treasury_shares(df: pd.DataFrame) -> pd.DataFrame:
     if out["document_id"].eq("").any():
         raise ValueError("FRE treasury contains empty ID_Documento")
     out["issuer_id"] = out["CNPJ_Companhia"].astype(str).str.strip()
-    out["treasury_count"] = _numeric_nonnegative_integral(
-        out["Quantidade_Acoes_Tesouraria"], "Quantidade_Acoes_Tesouraria"
-    )
-    out["treasury_raw_class"] = out["Classe_Valor_Mobiliario"].astype(str).str.strip()
-    out["treasury_class"] = out["Classe_Valor_Mobiliario"].map(_treasury_class)
+    if out["issuer_id"].eq("").any():
+        raise ValueError("FRE treasury contains empty issuer CNPJ")
 
-    keys = [
+    output_columns = [
+        "issuer_id",
+        "reference_date",
+        "available_from",
+        "filing_version",
+        "document_id",
+        "treasury_class",
+        "treasury_count",
+        "treasury_raw_class",
+    ]
+
+    if modern:
+        final_balance = out["Historico_Exercicio"].map(_normalized_text).eq("SALDO FINAL")
+        out = out.loc[final_balance].copy()
+        if out.empty:
+            return pd.DataFrame(columns=output_columns)
+
+        out["treasury_count"] = _numeric_nonnegative_integral(
+            out["Quantidade_Acoes_Tesouraria"], "Quantidade_Acoes_Tesouraria"
+        )
+        out["treasury_raw_class"] = out["Classe_Valor_Mobiliario"].astype(str).str.strip()
+        out["treasury_class"] = out["Classe_Valor_Mobiliario"].map(_treasury_class)
+
+        keys = [
+            "issuer_id",
+            "reference_date",
+            "filing_version",
+            "document_id",
+            "treasury_raw_class",
+        ]
+        duplicate = out.duplicated(keys, keep=False)
+        if duplicate.any():
+            grouped = out.loc[duplicate].groupby(keys, dropna=False)["treasury_count"].nunique()
+            if grouped.gt(1).any():
+                raise ValueError("conflicting FRE treasury rows within the same filing/class")
+            out = out.drop_duplicates(keys, keep="last")
+        return out[output_columns].reset_index(drop=True)
+
+    out["treasury_count"] = _numeric_nonnegative_integral(
+        out["Quantidade_Valor_Mobiliario"], "Quantidade_Valor_Mobiliario"
+    )
+
+    legacy_class_fields = (
+        "Especie_Acao",
+        "Descricao_Valor_Mobiliario",
+        "Valor_Mobiliario",
+        "Tipo_Classe_Acao_Preferencial",
+    )
+
+    def legacy_class_evidence(row: pd.Series) -> tuple[str, str]:
+        values: list[str] = []
+        classified = "unsupported"
+        preferred_detail = ""
+        for column in legacy_class_fields:
+            if column not in row.index:
+                continue
+            raw = "" if pd.isna(row[column]) else str(row[column]).strip()
+            if not raw:
+                continue
+            values.append(f"{column}={raw}")
+            candidate = _treasury_class(raw)
+            if candidate != "unsupported" and classified == "unsupported":
+                classified = candidate
+            if column == "Tipo_Classe_Acao_Preferencial":
+                preferred_detail = _normalized_text(raw)
+
+        if classified == "unsupported" and preferred_detail not in {
+            "",
+            "NA",
+            "N/A",
+            "NAO APLICAVEL",
+            "NAO SE APLICA",
+        }:
+            classified = "preferred"
+
+        raw_evidence = " | ".join(values) if values else "UNSPECIFIED"
+        return classified, raw_evidence
+
+    classified = out.apply(legacy_class_evidence, axis=1)
+    out["treasury_class"] = [item[0] for item in classified]
+    out["treasury_raw_class"] = [item[1] for item in classified]
+
+    group_keys = [
         "issuer_id",
         "reference_date",
         "filing_version",
         "document_id",
+        "treasury_class",
         "treasury_raw_class",
     ]
-    duplicate = out.duplicated(keys, keep=False)
-    if duplicate.any():
-        grouped = out.loc[duplicate].groupby(keys, dropna=False)["treasury_count"].nunique()
-        if grouped.gt(1).any():
-            raise ValueError("conflicting FRE treasury rows within the same filing/class")
-        out = out.drop_duplicates(keys, keep="last")
-
-    return out[
-        [
-            "issuer_id",
-            "reference_date",
-            "available_from",
-            "filing_version",
-            "document_id",
-            "treasury_class",
-            "treasury_count",
-            "treasury_raw_class",
-        ]
-    ].reset_index(drop=True)
+    out = (
+        out.groupby(group_keys, as_index=False, dropna=False)
+        .agg(
+            available_from=("available_from", "max"),
+            treasury_count=("treasury_count", "sum"),
+        )
+        .reset_index(drop=True)
+    )
+    return out[output_columns].reset_index(drop=True)
 
 
 def reconcile_fre_issued_and_treasury(
