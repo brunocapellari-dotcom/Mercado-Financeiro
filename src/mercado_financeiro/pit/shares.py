@@ -306,7 +306,7 @@ def normalize_fre_treasury_shares(df: pd.DataFrame) -> pd.DataFrame:
     """
     missing = _REQUIRED_FRE_TREASURY_COLUMNS - set(df.columns)
     if missing:
-        raise ValueError(f"missing FRE treasury columns: {sorted(missing)}")
+        raise ValueError(\n            f"missing FRE treasury columns: {sorted(missing)}; observed={sorted(map(str, df.columns))}"\n        )
 
     out = df.copy()
     final_balance = out["Historico_Exercicio"].map(_normalized_text).eq("SALDO FINAL")
