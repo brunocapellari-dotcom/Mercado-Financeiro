@@ -169,7 +169,7 @@ def normalize_dfp_shares_outstanding(df: pd.DataFrame) -> pd.DataFrame:
     return _standardize_share_columns(out)
 
 
-def normalize_fre_issued_shares(df: pd.DataFrame) -> pd.DataFrame:
+def normalize_fre_issued_shares(\n    df: pd.DataFrame,\n    *,\n    exclude_conflicts: bool = False,\n) -> pd.DataFrame:
     """Normalize historical FRE ``Capital Emitido`` share observations.
 
     ``Data_Autorizacao_Aprovacao`` is provenance only. It is never treated as the
@@ -248,6 +248,9 @@ def normalize_fre_issued_shares(df: pd.DataFrame) -> pd.DataFrame:
         distinct_counts = group[counts].drop_duplicates()
         if len(distinct_counts) > 1:
             if group["capital_approval_date"].isna().any():
+                if exclude_conflicts:
+                    excluded_conflicting_groups += 1
+                    continue
                 raise ValueError(
                     "conflicting FRE Capital Emitido rows require dated alteration evidence"
                 )
@@ -260,10 +263,18 @@ def normalize_fre_issued_shares(df: pd.DataFrame) -> pd.DataFrame:
                 group = group.loc[group["capital_approval_date"].eq(latest_approval)].copy()
 
         if len(group[counts].drop_duplicates()) > 1:
+            if exclude_conflicts:
+                excluded_conflicting_groups += 1
+                continue
             raise ValueError(
                 "conflicting FRE Capital Emitido rows at the same latest alteration date"
             )
         selected.append(group.tail(1))
+
+    if not selected:
+        result = _standardize_share_columns(pd.DataFrame())
+        result.attrs["excluded_conflicting_groups"] = excluded_conflicting_groups
+        return result
 
     out = pd.concat(selected, ignore_index=True)
     out = out.sort_values(keys, kind="stable").reset_index(drop=True)
