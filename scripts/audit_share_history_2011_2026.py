@@ -52,7 +52,13 @@ def main() -> None:
             members = _members(payload)
 
             capital, capital_audit = audit_fre_capital_social(path, year)
-            issued = normalize_fre_issued_shares(capital)
+            issued = normalize_fre_issued_shares(
+                capital,
+                exclude_conflicts=True,
+            )
+            invalid_issued_groups = int(
+                issued.attrs.get("excluded_conflicting_groups", 0)
+            )
             if issued.empty:
                 failed.append(year)
 
@@ -110,6 +116,7 @@ def main() -> None:
                 "capital_missing_available_from": capital_audit.missing_available_from,
                 "issued_rows": len(issued),
                 "issued_issuers": int(issued["issuer_id"].nunique()) if len(issued) else 0,
+                "invalid_issued_groups": invalid_issued_groups,
                 "treasury_member_present": treasury_member_present,
                 "treasury_rows": treasury_rows,
                 "treasury_final_rows": treasury_final_rows,
@@ -129,9 +136,11 @@ def main() -> None:
         "failed_source_years": sorted(set(failed)),
         "all_capital_sources_valid": not failed,
         "note": (
-            "Capital Emitido is retained PIT for every year. Market-cap eligibility "
-            "requires independently reconciled treasury balances; no missing treasury "
-            "class is silently assumed to be zero when ON and PN both exist."
+            "Capital Emitido is retained PIT when internally consistent. Conflicting "
+            "filing groups are excluded fail-closed and counted, never resolved by "
+            "arbitrary row choice. Market-cap eligibility requires independently "
+            "reconciled treasury balances; no missing treasury class is silently "
+            "assumed to be zero when ON and PN both exist."
         ),
     }
     print("FRE_SHARE_HISTORY_SUMMARY " + json.dumps(summary, sort_keys=True))
