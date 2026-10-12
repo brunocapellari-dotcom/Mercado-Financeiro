@@ -169,7 +169,11 @@ def normalize_dfp_shares_outstanding(df: pd.DataFrame) -> pd.DataFrame:
     return _standardize_share_columns(out)
 
 
-def normalize_fre_issued_shares(\n    df: pd.DataFrame,\n    *,\n    exclude_conflicts: bool = False,\n) -> pd.DataFrame:
+def normalize_fre_issued_shares(
+    df: pd.DataFrame,
+    *,
+    exclude_conflicts: bool = False,
+) -> pd.DataFrame:
     """Normalize historical FRE ``Capital Emitido`` share observations.
 
     ``Data_Autorizacao_Aprovacao`` is provenance only. It is never treated as the
@@ -244,6 +248,7 @@ def normalize_fre_issued_shares(\n    df: pd.DataFrame,\n    *,\n    exclude_con
     keys = ["issuer_id", "reference_date", "filing_version", "document_id"]
     counts = ["ordinary_issued", "preferred_issued", "total_issued"]
     selected: list[pd.DataFrame] = []
+    excluded_conflicting_groups = 0
     for _, group in out.groupby(keys, sort=False, dropna=False):
         distinct_counts = group[counts].drop_duplicates()
         if len(distinct_counts) > 1:
@@ -293,7 +298,9 @@ def normalize_fre_issued_shares(\n    df: pd.DataFrame,\n    *,\n    exclude_con
     out["source_priority"] = 100
     out["source"] = "CVM_FRE_CAPITAL_SOCIAL"
     out["vintage_mode"] = "filing_receipt_pit"
-    return _standardize_share_columns(out)
+    result = _standardize_share_columns(out)
+    result.attrs["excluded_conflicting_groups"] = excluded_conflicting_groups
+    return result
 
 
 def _treasury_class(value: object) -> str:
