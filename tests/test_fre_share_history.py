@@ -214,6 +214,19 @@ def test_fre_capital_rejects_conflict_at_same_latest_alteration_date():
         normalize_fre_issued_shares(pd.DataFrame(rows))
 
 
+def test_fre_capital_can_exclude_conflicting_filing_fail_closed():
+    rows = [
+        _capital(Quantidade_Acoes_Ordinarias="100", Quantidade_Total_Acoes="150"),
+        _capital(Quantidade_Acoes_Ordinarias="101", Quantidade_Total_Acoes="151"),
+    ]
+    issued = normalize_fre_issued_shares(
+        pd.DataFrame(rows),
+        exclude_conflicts=True,
+    )
+    assert issued.empty
+    assert issued.attrs["excluded_conflicting_groups"] == 1
+
+
 def test_fre_reconciliation_resolves_explicit_on_and_pn_treasury():
     issued = normalize_fre_issued_shares(pd.DataFrame([_capital()]))
     treasury = normalize_fre_treasury_shares(
