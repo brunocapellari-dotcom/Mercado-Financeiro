@@ -90,14 +90,17 @@ Broker positions, cash, orders and fills are reconciled independently against th
 
 Before extraction/opening, ZIP members are checked for absolute paths, `..` traversal, NUL bytes, symlinks, excessive member count, excessive uncompressed size and implausible compression ratio. Nested archives are subject to the same validation at every layer.
 
-## GitHub Actions and supply chain
+## Google Cloud Build and supply chain
 
-- Repository permissions default to `contents: read`.
-- Checkout uses `persist-credentials: false`.
-- Security checks run on pull requests and main.
-- Network audit workflows have read-only repository permissions and never consume privileged broker secrets.
-- Dependency and static-analysis jobs are isolated from any execution/broker environment.
-- Actions are pinned to immutable commit SHAs where practical.
+- GitHub is the source repository; it is not the execution environment.
+- Google Cloud Build is the canonical CI/CD executor.
+- Validation builds must not use the privileged deploy service account.
+- The deploy pipeline is manual, consumes promoted code, rejects destructive Terraform plans and deploys only immutable image digests.
+- Dependency, static-analysis, source-integration and secret scans execute before deployment.
+- Cloud Build container images are pinned by immutable digests.
+- PAPER/SHADOW runtime uses a dedicated Cloud Run service account with no broker credential.
+- Google Cloud Scheduler may invoke only the private PAPER/SHADOW job through the bounded scheduler identity.
+- No static service-account key is permitted.
 - Dependency vulnerability and secret scans fail closed.
 
 ## Data leakage controls
