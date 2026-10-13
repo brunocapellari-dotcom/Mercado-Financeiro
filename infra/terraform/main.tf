@@ -14,7 +14,7 @@ provider "google" {
 }
 
 locals {
-  datasets = toset(["raw", "normalized", "features", "research"])
+  datasets = toset(["raw", "normalized", "canonical", "derived", "analytics", "research"])
   service_accounts = {
     ingest    = "mf-ingest"
     transform = "mf-transform"
@@ -97,14 +97,26 @@ resource "google_bigquery_dataset_iam_member" "normalized_transform_editor" {
   member     = "serviceAccount:${google_service_account.workload["transform"].email}"
 }
 
-resource "google_bigquery_dataset_iam_member" "features_transform_editor" {
-  dataset_id = google_bigquery_dataset.layer["features"].dataset_id
+resource "google_bigquery_dataset_iam_member" "canonical_transform_editor" {
+  dataset_id = google_bigquery_dataset.layer["canonical"].dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.workload["transform"].email}"
+}
+
+resource "google_bigquery_dataset_iam_member" "derived_transform_editor" {
+  dataset_id = google_bigquery_dataset.layer["derived"].dataset_id
+  role       = "roles/bigquery.dataEditor"
+  member     = "serviceAccount:${google_service_account.workload["transform"].email}"
+}
+
+resource "google_bigquery_dataset_iam_member" "analytics_transform_editor" {
+  dataset_id = google_bigquery_dataset.layer["analytics"].dataset_id
   role       = "roles/bigquery.dataEditor"
   member     = "serviceAccount:${google_service_account.workload["transform"].email}"
 }
 
 resource "google_bigquery_dataset_iam_member" "research_reader" {
-  for_each   = toset(["normalized", "features"])
+  for_each   = toset(["normalized", "canonical", "derived", "analytics"])
   dataset_id = google_bigquery_dataset.layer[each.key].dataset_id
   role       = "roles/bigquery.dataViewer"
   member     = "serviceAccount:${google_service_account.workload["research"].email}"
