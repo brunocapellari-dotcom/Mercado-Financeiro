@@ -59,16 +59,17 @@ Ele testa o projeto inteiro: compile, secrets/data scan, Ruff, mypy, duas execu�
 completas de pytest em ordens diferentes, coverage, agentes/evals, Bandit, pip-audit
 e audits oficiais.
 
-GitHub Actions é apenas um executor desse contrato. O repositório privado atualmente
-não dispõe de runner, portanto o head corrente não pode ser chamado de validado até
-o gate ser executado em um executor autorizado.
+Google Cloud Build é o executor canônico desse contrato. GitHub é somente a fonte
+de código e não executa CI/CD neste projeto. O gate Google acrescenta secret scan,
+Semgrep com regras locais, Terraform validate, build do container e PAPER smoke.
 
 ## Estado atual
 
 Arquitetura integrada em PR, com PIT histórico, Tournament, segurança/risk,
-replay/accounting, governança de agentes, observabilidade e novas fontes em
-consolidação final. A prioridade é executar o gate integral no head atual, corrigir
-qualquer falha sem reduzir critérios e então concluir os benchmarks OOS/paridade.
+replay/accounting, governança de agentes, observabilidade e runtime Google
+PAPER/SHADOW. Brapi v2 é fonte secundária delayed somente para validação PAPER;
+B3/CVM/BCB/NEFIN permanecem canônicos. O próximo gate real deve ser executado pelo
+Cloud Build após a conexão inicial do repositório ao projeto Google.
 
 > LIVE permanece bloqueado até todos os gates de dados, estatística, segurança,
 > reconciliação e risco estarem aprovados.
