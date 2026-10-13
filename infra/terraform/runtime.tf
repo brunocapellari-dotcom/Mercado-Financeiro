@@ -1,5 +1,11 @@
+data "google_project" "current" {
+  project_id = var.project_id
+}
+
 locals {
   holding_scheduler_service_account = "holding-worker-scheduler@${var.project_id}.iam.gserviceaccount.com"
+  deployer_service_account          = "github-deployer@${var.project_id}.iam.gserviceaccount.com"
+  scheduler_service_agent           = "service-${data.google_project.current.number}@gcp-sa-cloudscheduler.iam.gserviceaccount.com"
   execution_evidence_bucket         = google_storage_bucket.raw_evidence.name
 }
 
@@ -10,6 +16,18 @@ resource "google_service_account" "paper_shadow" {
   lifecycle {
     prevent_destroy = true
   }
+}
+
+resource "google_service_account_iam_member" "deployer_act_as_paper_shadow" {
+  service_account_id = google_service_account.paper_shadow.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${local.deployer_service_account}"
+}
+
+resource "google_service_account_iam_member" "scheduler_agent_mints_scheduler_token" {
+  service_account_id = "projects/${var.project_id}/serviceAccounts/${local.holding_scheduler_service_account}"
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:${local.scheduler_service_agent}"
 }
 
 resource "google_storage_bucket_iam_member" "paper_shadow_evidence_writer" {
@@ -93,6 +111,8 @@ resource "google_cloud_run_v2_job" "paper_shadow" {
   }
 
   depends_on = [
+    google_project_service.required,
+    google_service_account_iam_member.deployer_act_as_paper_shadow,
     google_storage_bucket_iam_member.paper_shadow_evidence_writer,
   ]
 }
@@ -135,5 +155,6 @@ resource "google_cloud_scheduler_job" "paper_shadow" {
 
   depends_on = [
     google_cloud_run_v2_job_iam_member.holding_scheduler_invoker,
+    google_service_account_iam_member.scheduler_agent_mints_scheduler_token,
   ]
 }
