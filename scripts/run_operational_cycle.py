@@ -145,6 +145,7 @@ def _market_data_preflight() -> dict[str, Any]:
         "fresh_for_paper": quote_age_seconds <= max_quote_age_seconds,
         "source_sha256": payload["source_sha256"],
         "market_data_class": payload["market_data_class"],
+        "volume": payload.get("volume"),
         "api_key_present": api_key is not None,
         "synthetic_bid": str(bid),
         "synthetic_ask": str(ask),
@@ -157,6 +158,97 @@ def _market_data_preflight() -> dict[str, Any]:
         ),
     }
 
+
+
+
+def _paper_market_cycle(preflight: dict[str, Any]) -> dict[str, Any]:
+    if not bool(preflight.get("ok")):
+        return {"ok": False, "state": "blocked", "reason": "market_data_preflight_failed"}
+
+    quote_age = Decimal(str(preflight["quote_age_seconds"]))
+    max_age = Decimal(str(preflight["configured_max_quote_age_seconds"]))
+    now = datetime.fromisoformat(str(preflight["received_timestamp"]))
+    if quote_age > max_age:
+        return {
+            "ok": True,
+            "state": "skipped",
+            "reason": "delayed_quote_too_old_for_paper",
+            "quote_age_seconds": str(quote_age),
+            "max_quote_age_seconds": str(max_age),
+        }
+
+    local = now.astimezone(__import__("zoneinfo").ZoneInfo("America/Sao_Paulo"))
+    if local.weekday() >= 5 or not (time(10, 0) <= local.time().replace(tzinfo=None) <= time(18, 0)):
+        return {
+            "ok": True,
+            "state": "skipped",
+            "reason": "outside_paper_market_window",
+            "local_time": local.isoformat(),
+        }
+
+    ticker = str(preflight["ticker"])
+    price = Decimal(str(preflight["price"]))
+    bid = Decimal(str(preflight["synthetic_bid"]))
+    ask = Decimal(str(preflight["synthetic_ask"]))
+    risk = DeterministicRiskEngine(
+        RiskLimits(
+            max_order_notional=Decimal("1000"),
+            max_abs_position=Decimal("10"),
+            allowed_instruments=frozenset({ticker}),
+            trading_start=time(10, 0),
+            trading_end=time(18, 0),
+            max_daily_loss=Decimal("100"),
+            max_market_data_age_seconds=max_age,
+        )
+    )
+    session = DeterministicSimulationSession(
+        mode=SimulationMode.PAPER,
+        risk_engine=risk,
+        brokerage_schedule=BrokerageCostSchedule(
+            fee_bps=Decimal("2"),
+            base_slippage_bps=Decimal("5"),
+            max_adv_participation=Decimal("0.05"),
+            settlement_business_days=0,
+        ),
+        initial_cash=Decimal("100000"),
+    )
+    volume = Decimal(str(preflight.get("volume") or "1000000"))
+    adv_notional = max(price * volume, Decimal("1000000"))
+    report = session.run(
+        [
+            SimulationEvent(
+                order=OrderIntent(
+                    instrument=ticker,
+                    side="buy",
+                    quantity=Decimal("1"),
+                    price=price,
+                    signal_id="brapi-paper-health",
+                    idempotency_key=f"brapi-paper-{now.strftime('%Y%m%dT%H%M')}-{ticker}",
+                    created_at=now,
+                ),
+                market=MarketExecutionState(
+                    timestamp=now,
+                    bid=bid,
+                    ask=ask,
+                    available_quantity=max(volume, Decimal("1")),
+                    adv_notional=adv_notional,
+                ),
+                marks={ticker: price},
+                market_data_age_seconds=quote_age,
+            )
+        ]
+    )
+    step = report.steps[0]
+    return {
+        "ok": bool(step.execution.accepted),
+        "state": "executed" if step.execution.accepted else "rejected",
+        "ticker": ticker,
+        "execution_status": step.execution.status,
+        "digest_sha256": report.digest_sha256,
+        "final_equity": str(report.final.equity),
+        "market_data_class": "brapi_delayed_with_synthetic_paper_spread",
+        "live_trading_enabled": False,
+    }
 
 
 def _persist_cloud_evidence(encoded: str, payload: dict[str, Any]) -> str | None:
@@ -189,7 +281,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--mode",
-        choices=("source-audit", "paper-smoke", "preflight", "full"),
+        choices=("source-audit", "paper-smoke", "preflight", "paper", "full"),
         default="full",
     )
     parser.add_argument("--output", default="")
@@ -211,18 +303,26 @@ def main() -> int:
     if args.mode in {"paper-smoke", "full"}:
         payload["paper_smoke"] = _paper_smoke()
 
-    if args.mode in {"preflight", "full"}:
+    if args.mode in {"preflight", "paper", "full"}:
         payload["market_data_preflight"] = _market_data_preflight()
+
+    if args.mode in {"paper", "full"}:
+        payload["paper_market_cycle"] = _paper_market_cycle(
+            payload["market_data_preflight"]
+        )
 
     source_ok = all(item["ok"] for item in payload.get("source_audits", []))
     paper_ok = bool(payload.get("paper_smoke", {"ok": True})["ok"])
     preflight = payload.get("market_data_preflight")
     price_ok = True if preflight is None else bool(preflight["ok"])
+    paper_market = payload.get("paper_market_cycle")
+    paper_market_ok = True if paper_market is None else bool(paper_market["ok"])
 
     payload["source_audits_ok"] = source_ok
     payload["paper_smoke_ok"] = paper_ok
     payload["market_data_ready"] = price_ok
-    payload["operational_preflight_ready"] = source_ok and paper_ok and price_ok
+    payload["paper_market_ok"] = paper_market_ok
+    payload["operational_preflight_ready"] = source_ok and paper_ok and price_ok and paper_market_ok
     payload["ended_at"] = datetime.now(timezone.utc).isoformat()
 
     encoded = json.dumps(payload, sort_keys=True, indent=2, default=str) + "\n"
