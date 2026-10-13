@@ -104,11 +104,14 @@ class DeterministicSimulationSession:
         last_marks: dict[str, Decimal] = {}
         for event in materialized:
             instrument = event.order.instrument.strip().upper()
-            last_marks.update(
-                {str(k).strip().upper(): Decimal(v) for k, v in event.marks.items()}
-            )
+            event_marks = {
+                str(k).strip().upper(): Decimal(v)
+                for k, v in event.marks.items()
+            }
+            last_marks.update(event_marks)
             midpoint = (event.market.bid + event.market.ask) / Decimal("2")
-            last_marks.setdefault(instrument, midpoint)
+            if instrument not in event_marks:
+                last_marks[instrument] = midpoint
 
             before = self._ledger.mark_to_market(last_marks)
             self._peak_equity = max(self._peak_equity, before.equity)
