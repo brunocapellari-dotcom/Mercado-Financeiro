@@ -171,8 +171,8 @@ def _paper_market_cycle(preflight: dict[str, Any]) -> dict[str, Any]:
     now = datetime.fromisoformat(str(preflight["received_timestamp"]))
     if quote_age > max_age:
         return {
-            "ok": True,
-            "state": "skipped",
+            "ok": False,
+            "state": "blocked",
             "reason": "delayed_quote_too_old_for_paper",
             "quote_age_seconds": str(quote_age),
             "max_quote_age_seconds": str(max_age),
@@ -181,8 +181,8 @@ def _paper_market_cycle(preflight: dict[str, Any]) -> dict[str, Any]:
     local = now.astimezone(ZoneInfo("America/Sao_Paulo"))
     if local.weekday() >= 5 or not (time(10, 0) <= local.time().replace(tzinfo=None) <= time(18, 0)):
         return {
-            "ok": True,
-            "state": "skipped",
+            "ok": False,
+            "state": "blocked",
             "reason": "outside_paper_market_window",
             "local_time": local.isoformat(),
         }
