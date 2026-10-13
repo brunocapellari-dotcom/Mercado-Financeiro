@@ -20,7 +20,7 @@ jobs:
       REGION: southamerica-east1
       TF_STATE_BUCKET: ai-holding-prod-bc-tfstate
       TF_STATE_PREFIX: mercado-financeiro/prod
-      WIF_PROVIDER: projects/868946857614/locations/global/workloadIdentityPools/github-actions/providers/ai-holding-main
+      WIF_PROVIDER: projects/868946857614/locations/global/workloadIdentityPools/github-actions/providers/mf-deploy-main
       DEPLOY_SERVICE_ACCOUNT: github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com
       MARKET_DATA_SECRET: mf-authorized-price-report-url
       JOB_NAME: mf-paper-shadow
