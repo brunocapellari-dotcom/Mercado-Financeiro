@@ -1,0 +1,185 @@
+steps:
+  - id: release-gate
+    name: python:3.12.14-bookworm@sha256:dbbe4ceb97851e2e5fa83798b239811f871cb743b259ba3563737349f6bcfaa0
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+        pip install -e '.[test,validation,quality,agents,cloud]'
+        python scripts/run_full_project_gate.py --mode full
+        python scripts/run_operational_cycle.py --mode preflight           --output /workspace/market-preflight.json
+
+  - id: terraform-validate
+    name: hashicorp/terraform:1.9.8@sha256:7dbd316397eac07a524394b060d034eb1319eed5e793cff6bd5fe24a1f1f571f
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        terraform -chdir=infra/terraform fmt -check -recursive
+        terraform -chdir=infra/terraform init -backend=false
+        terraform -chdir=infra/terraform validate
+
+  - id: build-runtime
+    name: gcr.io/cloud-builders/docker@sha256:17d83a179e10ec76698b9580f6d367e13957fcd32135e9b265039b553e8547e6
+    args:
+      - "build"
+      - "--pull"
+      - "--tag"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/holding/mercado-financeiro:$COMMIT_SHA"
+      - "."
+
+  - id: push-runtime
+    name: gcr.io/cloud-builders/docker@sha256:17d83a179e10ec76698b9580f6d367e13957fcd32135e9b265039b553e8547e6
+    args:
+      - "push"
+      - "${_REGION}-docker.pkg.dev/$PROJECT_ID/holding/mercado-financeiro:$COMMIT_SHA"
+
+  - id: resolve-runtime-digest
+    name: google/cloud-sdk:586.0.0-stable@sha256:3b919e49b22d898d4ef5500d0eb4ccb6c3ce199786387ea526d087728b4ae606
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        digest="$$(gcloud artifacts docker images describe           "${_REGION}-docker.pkg.dev/$PROJECT_ID/holding/mercado-financeiro:$COMMIT_SHA"           --project="$PROJECT_ID"           --format='value(image_summary.digest)')"
+        test -n "$$digest"
+        printf '%s
+' "${_REGION}-docker.pkg.dev/$PROJECT_ID/holding/mercado-financeiro@$$digest"           > /workspace/runtime-image-ref.txt
+
+  - id: terraform-plan
+    name: hashicorp/terraform:1.9.8@sha256:7dbd316397eac07a524394b060d034eb1319eed5e793cff6bd5fe24a1f1f571f
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        image_ref="$$(cat /workspace/runtime-image-ref.txt)"
+        terraform -chdir=infra/terraform init           -backend-config="bucket=$PROJECT_ID-tfstate"           -backend-config="prefix=mercado-financeiro/prod"
+        terraform -chdir=infra/terraform plan           -var-file=prod.tfvars           -var="deploy_paper_shadow=true"           -var="runtime_image_ref=$$image_ref"           -out=/workspace/tfplan
+        terraform -chdir=infra/terraform show -json /workspace/tfplan           > /workspace/tfplan.json
+
+  - id: reject-destructive-plan
+    name: python:3.12.14-bookworm@sha256:dbbe4ceb97851e2e5fa83798b239811f871cb743b259ba3563737349f6bcfaa0
+    entrypoint: python
+    args:
+      - -c
+      - |
+        import json
+        from pathlib import Path
+        plan = json.loads(Path("/workspace/tfplan.json").read_text())
+        destructive = []
+        for change in plan.get("resource_changes", []):
+            actions = change.get("change", {}).get("actions", [])
+            if "delete" in actions:
+                destructive.append(change.get("address"))
+        if destructive:
+            raise SystemExit("destructive Terraform plan blocked: " + ", ".join(destructive))
+        print("NON_DESTRUCTIVE_TERRAFORM_PLAN_OK")
+
+  - id: terraform-apply
+    name: hashicorp/terraform:1.9.8@sha256:7dbd316397eac07a524394b060d034eb1319eed5e793cff6bd5fe24a1f1f571f
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        terraform -chdir=infra/terraform apply -auto-approve /workspace/tfplan
+
+  - id: verify-private-runtime
+    name: google/cloud-sdk:586.0.0-stable@sha256:3b919e49b22d898d4ef5500d0eb4ccb6c3ce199786387ea526d087728b4ae606
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud run jobs describe mf-paper-shadow           --project="$PROJECT_ID"           --region="${_REGION}"           --format=json > /workspace/job.json
+        gcloud run jobs get-iam-policy mf-paper-shadow           --project="$PROJECT_ID"           --region="${_REGION}"           --format=json > /workspace/job-policy.json
+        gcloud scheduler jobs describe mf-paper-shadow-market-hours           --project="$PROJECT_ID"           --location="${_REGION}"           --format=json > /workspace/scheduler.json
+
+  - id: verify-private-runtime-policy
+    name: python:3.12.14-bookworm@sha256:dbbe4ceb97851e2e5fa83798b239811f871cb743b259ba3563737349f6bcfaa0
+    entrypoint: python
+    args:
+      - -c
+      - |
+        import json
+        from pathlib import Path
+        policy = json.loads(Path("/workspace/job-policy.json").read_text())
+        members = {
+            member
+            for binding in policy.get("bindings", [])
+            for member in binding.get("members", [])
+        }
+        forbidden = {"allUsers", "allAuthenticatedUsers"}
+        if members & forbidden:
+            raise SystemExit("public Cloud Run Job invocation is forbidden")
+        job = json.loads(Path("/workspace/job.json").read_text())
+        text = json.dumps(job)
+        if "BRAPI_API_KEY" in text:
+            raise SystemExit("zero-cost sandbox runtime must not require BRAPI_API_KEY")
+        print("PRIVATE_RUNTIME_POLICY_OK")
+
+  - id: acceptance-cycle-1
+    name: google/cloud-sdk:586.0.0-stable@sha256:3b919e49b22d898d4ef5500d0eb4ccb6c3ce199786387ea526d087728b4ae606
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud run jobs execute mf-paper-shadow           --project="$PROJECT_ID"           --region="${_REGION}"           --wait
+
+  - id: acceptance-cycle-2
+    name: google/cloud-sdk:586.0.0-stable@sha256:3b919e49b22d898d4ef5500d0eb4ccb6c3ce199786387ea526d087728b4ae606
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        gcloud run jobs execute mf-paper-shadow           --project="$PROJECT_ID"           --region="${_REGION}"           --wait
+        gcloud run jobs executions list           --job=mf-paper-shadow           --project="$PROJECT_ID"           --region="${_REGION}"           --sort-by='~metadata.creationTimestamp'           --limit=2           --format=json > /workspace/executions.json
+
+  - id: verify-two-acceptances
+    name: python:3.12.14-bookworm@sha256:dbbe4ceb97851e2e5fa83798b239811f871cb743b259ba3563737349f6bcfaa0
+    entrypoint: python
+    args:
+      - -c
+      - |
+        import json
+        from pathlib import Path
+        executions = json.loads(Path("/workspace/executions.json").read_text())
+        if len(executions) != 2:
+            raise SystemExit("expected exactly two latest acceptance executions")
+        for execution in executions:
+            conditions = execution.get("status", {}).get("conditions", [])
+            completed = any(
+                item.get("type") == "Completed" and item.get("status") == "True"
+                for item in conditions
+            )
+            if not completed:
+                raise SystemExit("one of the two PAPER/SHADOW acceptance runs failed")
+        print("PAPER_SHADOW_TWO_CYCLE_ACCEPTANCE_OK")
+
+  - id: persist-deploy-evidence
+    name: google/cloud-sdk:586.0.0-stable@sha256:3b919e49b22d898d4ef5500d0eb4ccb6c3ce199786387ea526d087728b4ae606
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        mkdir -p /workspace/deploy-evidence
+        cp /workspace/runtime-image-ref.txt /workspace/deploy-evidence/
+        cp /workspace/market-preflight.json /workspace/deploy-evidence/
+        cp /workspace/tfplan.json /workspace/deploy-evidence/
+        cp /workspace/job.json /workspace/deploy-evidence/
+        cp /workspace/job-policy.json /workspace/deploy-evidence/
+        cp /workspace/scheduler.json /workspace/deploy-evidence/
+        cp /workspace/executions.json /workspace/deploy-evidence/
+        printf '%s
+' "$COMMIT_SHA" > /workspace/deploy-evidence/source-commit.txt
+        printf '%s
+' "$BUILD_ID" > /workspace/deploy-evidence/cloud-build-id.txt
+        gcloud storage cp --recursive           /workspace/deploy-evidence           "gs://$PROJECT_ID-mf-raw-evidence/release-evidence/$BUILD_ID/"
+
+substitutions:
+  _REGION: southamerica-east1
+
+timeout: 14400s
+
+serviceAccount: "projects/$PROJECT_ID/serviceAccounts/github-deployer@$PROJECT_ID.iam.gserviceaccount.com"
+
+options:
+  logging: CLOUD_LOGGING_ONLY
