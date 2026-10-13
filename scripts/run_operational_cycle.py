@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime, time, timezone
 from decimal import Decimal
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
@@ -166,6 +167,32 @@ def _authorized_price_preflight() -> dict[str, Any]:
     }
 
 
+def _persist_cloud_evidence(encoded: str, payload: dict[str, Any]) -> str | None:
+    bucket_name = os.environ.get("MF_EVIDENCE_BUCKET", "").strip()
+    if not bucket_name:
+        return None
+
+    from google.cloud import storage
+
+    prefix = os.environ.get(
+        "MF_EVIDENCE_PREFIX",
+        "operational/mercado-financeiro",
+    ).strip("/")
+    ended_at = str(payload["ended_at"]).replace(":", "").replace("-", "")
+    digest = sha256(encoded.encode("utf-8")).hexdigest()
+    object_name = f"{prefix}/{ended_at}-{digest}.json"
+
+    client = storage.Client()
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(object_name)
+    blob.upload_from_string(
+        encoded,
+        content_type="application/json",
+        if_generation_match=0,
+    )
+    return f"gs://{bucket_name}/{object_name}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -207,12 +234,17 @@ def main() -> int:
     payload["ended_at"] = datetime.now(timezone.utc).isoformat()
 
     encoded = json.dumps(payload, sort_keys=True, indent=2, default=str) + "\n"
-    print(encoded, end="")
     if args.output:
         target = Path(args.output)
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(encoded, encoding="utf-8")
 
+    cloud_uri = _persist_cloud_evidence(encoded, payload)
+    if cloud_uri is not None:
+        payload["cloud_evidence_uri"] = cloud_uri
+        encoded = json.dumps(payload, sort_keys=True, indent=2, default=str) + "\n"
+
+    print(encoded, end="")
     return 0 if payload["operational_preflight_ready"] else 3
 
 
