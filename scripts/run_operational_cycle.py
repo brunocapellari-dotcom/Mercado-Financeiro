@@ -11,9 +11,7 @@ import subprocess
 import sys
 from typing import Any
 
-import pandas as pd
-
-from mercado_financeiro.data.b3_prices import B3PriceReportSource
+from mercado_financeiro.data import BrapiMarketDataProvider
 from mercado_financeiro.execution import BrokerageCostSchedule, MarketExecutionState
 from mercado_financeiro.operations.simulation import (
     DeterministicSimulationSession,
@@ -112,59 +110,53 @@ def _paper_smoke() -> dict[str, Any]:
     }
 
 
-def _authorized_price_preflight() -> dict[str, Any]:
-    url = os.environ.get("MF_PRICE_REPORT_URL", "").strip()
-    dataset = os.environ.get("MF_PRICE_REPORT_DATASET", "BVBG.186.01").strip().upper()
+def _market_data_preflight() -> dict[str, Any]:
     ticker = os.environ.get("MF_PAPER_TICKER", "PETR4").strip().upper()
+    api_key = os.environ.get("BRAPI_API_KEY", "").strip() or None
+    provider = BrapiMarketDataProvider(api_key=api_key)
+    provider.connect()
+    event = provider.snapshot([ticker])[0]
+    provider.disconnect()
 
-    if not url:
-        return {
-            "ok": False,
-            "state": "blocked",
-            "reason": "authorized_price_report_url_missing",
-            "required_secret": "MF_PRICE_REPORT_URL",
-            "dataset": dataset,
-            "ticker": ticker,
-        }
+    payload = dict(event.payload)
+    quote_age_seconds = max(
+        0.0,
+        (event.received_timestamp - event.exchange_timestamp).total_seconds(),
+    )
+    max_quote_age_seconds = float(
+        os.environ.get("MF_PAPER_MAX_QUOTE_AGE_SECONDS", "2400")
+    )
+    price = Decimal(str(payload["price"]))
+    spread_bps = Decimal(os.environ.get("MF_PAPER_SYNTHETIC_SPREAD_BPS", "20"))
+    spread = spread_bps / Decimal("10000")
+    bid = price * (Decimal("1") - spread / Decimal("2"))
+    ask = price * (Decimal("1") + spread / Decimal("2"))
 
-    source = B3PriceReportSource()
-    historical = source.fetch_url(url, dataset=dataset)
-    frame = historical.frame
-    selected = frame.loc[frame["ticker"].astype(str).str.upper().eq(ticker)].copy()
-    if selected.empty:
-        return {
-            "ok": False,
-            "state": "blocked",
-            "reason": "configured_ticker_missing_from_authorized_price_report",
-            "dataset": dataset,
-            "ticker": ticker,
-            "source_sha256": historical.sha256,
-        }
-
-    selected = selected.sort_values("reference_date", kind="stable")
-    row = selected.iloc[-1]
-    best_bid = row.get("best_bid")
-    best_ask = row.get("best_ask")
-    close_price = row.get("close_price")
-    executable_quote = not pd.isna(best_bid) and not pd.isna(best_ask)
     return {
         "ok": True,
         "state": "ready",
-        "dataset": dataset,
+        "provider": event.provider,
         "ticker": ticker,
-        "reference_date": str(row["reference_date"]),
-        "available_from": str(row["available_from"]),
-        "source_sha256": historical.sha256,
-        "raw_receipt_present": bool(str(row.get("raw_receipt_id", "")).strip()),
-        "best_bid": None if pd.isna(best_bid) else str(best_bid),
-        "best_ask": None if pd.isna(best_ask) else str(best_ask),
-        "close_price": None if pd.isna(close_price) else str(close_price),
-        "executable_quote_present": executable_quote,
+        "price": str(price),
+        "exchange_timestamp": event.exchange_timestamp.isoformat(),
+        "received_timestamp": event.received_timestamp.isoformat(),
+        "quote_age_seconds": quote_age_seconds,
+        "configured_max_quote_age_seconds": max_quote_age_seconds,
+        "fresh_for_paper": quote_age_seconds <= max_quote_age_seconds,
+        "source_sha256": payload["source_sha256"],
+        "market_data_class": payload["market_data_class"],
+        "api_key_present": api_key is not None,
+        "synthetic_bid": str(bid),
+        "synthetic_ask": str(ask),
+        "synthetic_spread_bps": str(spread_bps),
+        "execution_feed": False,
         "note": (
-            "The URL must come from an authorized/licensed source path. "
-            "This runner never discovers or scrapes B3 download pages."
+            "BRAPI is delayed polling market data. Bid/ask are conservative synthetic "
+            "PAPER marks derived from the delayed last price; they are never presented "
+            "as exchange executable quotes and are forbidden for LIVE."
         ),
     }
+
 
 
 def _persist_cloud_evidence(encoded: str, payload: dict[str, Any]) -> str | None:
@@ -220,16 +212,16 @@ def main() -> int:
         payload["paper_smoke"] = _paper_smoke()
 
     if args.mode in {"preflight", "full"}:
-        payload["authorized_price_preflight"] = _authorized_price_preflight()
+        payload["market_data_preflight"] = _market_data_preflight()
 
     source_ok = all(item["ok"] for item in payload.get("source_audits", []))
     paper_ok = bool(payload.get("paper_smoke", {"ok": True})["ok"])
-    preflight = payload.get("authorized_price_preflight")
+    preflight = payload.get("market_data_preflight")
     price_ok = True if preflight is None else bool(preflight["ok"])
 
     payload["source_audits_ok"] = source_ok
     payload["paper_smoke_ok"] = paper_ok
-    payload["authorized_price_ready"] = price_ok
+    payload["market_data_ready"] = price_ok
     payload["operational_preflight_ready"] = source_ok and paper_ok and price_ok
     payload["ended_at"] = datetime.now(timezone.utc).isoformat()
 
