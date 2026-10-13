@@ -12,24 +12,6 @@ resource "google_service_account" "paper_shadow" {
   }
 }
 
-resource "google_secret_manager_secret" "authorized_price_report_url" {
-  secret_id = var.market_data_secret_id
-
-  replication {
-    auto {}
-  }
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "google_secret_manager_secret_iam_member" "paper_shadow_market_data" {
-  secret_id = google_secret_manager_secret.authorized_price_report_url.id
-  role      = "roles/secretmanager.secretAccessor"
-  member    = "serviceAccount:${google_service_account.paper_shadow.email}"
-}
-
 resource "google_storage_bucket_iam_member" "paper_shadow_evidence_writer" {
   bucket = local.execution_evidence_bucket
   role   = "roles/storage.objectCreator"
@@ -76,24 +58,18 @@ resource "google_cloud_run_v2_job" "paper_shadow" {
         ]
 
         env {
-          name  = "MF_PRICE_REPORT_DATASET"
-          value = var.price_report_dataset
-        }
-
-        env {
           name  = "MF_PAPER_TICKER"
           value = var.paper_ticker
         }
 
         env {
-          name = "MF_PRICE_REPORT_URL"
+          name  = "MF_PAPER_MAX_QUOTE_AGE_SECONDS"
+          value = tostring(var.paper_max_quote_age_seconds)
+        }
 
-          value_source {
-            secret_key_ref {
-              secret  = google_secret_manager_secret.authorized_price_report_url.secret_id
-              version = "latest"
-            }
-          }
+        env {
+          name  = "MF_PAPER_SYNTHETIC_SPREAD_BPS"
+          value = tostring(var.paper_synthetic_spread_bps)
         }
 
         env {
@@ -117,7 +93,6 @@ resource "google_cloud_run_v2_job" "paper_shadow" {
   }
 
   depends_on = [
-    google_secret_manager_secret_iam_member.paper_shadow_market_data,
     google_storage_bucket_iam_member.paper_shadow_evidence_writer,
   ]
 }
@@ -129,4 +104,36 @@ resource "google_cloud_run_v2_job_iam_member" "holding_scheduler_invoker" {
   name     = google_cloud_run_v2_job.paper_shadow[0].name
   role     = "roles/run.invoker"
   member   = "serviceAccount:${local.holding_scheduler_service_account}"
+}
+
+resource "google_cloud_scheduler_job" "paper_shadow" {
+  count       = var.deploy_paper_shadow ? 1 : 0
+  name        = "mf-paper-shadow-market-hours"
+  description = "Runs the delayed PAPER/SHADOW operational cycle on Google infrastructure."
+  region      = var.region
+  schedule    = var.paper_shadow_schedule
+  time_zone   = "America/Sao_Paulo"
+
+  retry_config {
+    retry_count          = 1
+    min_backoff_duration = "60s"
+    max_backoff_duration = "300s"
+  }
+
+  http_target {
+    http_method = "POST"
+    uri = (
+      "https://run.googleapis.com/v2/projects/${var.project_id}/locations/"
+      + "${var.region}/jobs/${google_cloud_run_v2_job.paper_shadow[0].name}:run"
+    )
+
+    oauth_token {
+      service_account_email = local.holding_scheduler_service_account
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
+    }
+  }
+
+  depends_on = [
+    google_cloud_run_v2_job_iam_member.holding_scheduler_invoker,
+  ]
 }
