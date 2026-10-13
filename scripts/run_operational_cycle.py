@@ -10,6 +10,8 @@ import subprocess
 import sys
 from typing import Any
 
+import pandas as pd
+
 from mercado_financeiro.data.b3_prices import B3PriceReportSource
 from mercado_financeiro.execution import BrokerageCostSchedule, MarketExecutionState
 from mercado_financeiro.operations.simulation import (
@@ -143,12 +145,7 @@ def _authorized_price_preflight() -> dict[str, Any]:
     best_bid = row.get("best_bid")
     best_ask = row.get("best_ask")
     close_price = row.get("close_price")
-    executable_quote = (
-        best_bid is not None
-        and best_ask is not None
-        and not bool(getattr(best_bid, "__class__", object).__name__ == "NAType")
-        and not bool(getattr(best_ask, "__class__", object).__name__ == "NAType")
-    )
+    executable_quote = not pd.isna(best_bid) and not pd.isna(best_ask)
     return {
         "ok": True,
         "state": "ready",
@@ -158,9 +155,9 @@ def _authorized_price_preflight() -> dict[str, Any]:
         "available_from": str(row["available_from"]),
         "source_sha256": historical.sha256,
         "raw_receipt_present": bool(str(row.get("raw_receipt_id", "")).strip()),
-        "best_bid": None if best_bid is None else str(best_bid),
-        "best_ask": None if best_ask is None else str(best_ask),
-        "close_price": None if close_price is None else str(close_price),
+        "best_bid": None if pd.isna(best_bid) else str(best_bid),
+        "best_ask": None if pd.isna(best_ask) else str(best_ask),
+        "close_price": None if pd.isna(close_price) else str(close_price),
         "executable_quote_present": executable_quote,
         "note": (
             "The URL must come from an authorized/licensed source path. "
