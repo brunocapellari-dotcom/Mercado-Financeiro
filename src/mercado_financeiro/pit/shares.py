@@ -189,7 +189,37 @@ def normalize_fre_issued_shares(
     emitted = out["Tipo_Capital"].map(_normalized_text).eq("CAPITAL EMITIDO")
     out = out.loc[emitted].copy()
     if out.empty:
-        return _standardize_share_columns(pd.DataFrame())
+        result = _standardize_share_columns(pd.DataFrame())
+        result.attrs["excluded_conflicting_groups"] = 0
+        return result
+
+    if exclude_conflicts:
+        filing_keys = [
+            "CNPJ_Companhia",
+            "Data_Referencia",
+            "Versao",
+            "ID_Documento",
+        ]
+        accepted: list[pd.DataFrame] = []
+        excluded = 0
+        for _, filing in out.groupby(filing_keys, sort=False, dropna=False):
+            try:
+                normalized = normalize_fre_issued_shares(
+                    filing,
+                    exclude_conflicts=False,
+                )
+            except ValueError:
+                excluded += 1
+                continue
+            if not normalized.empty:
+                accepted.append(normalized)
+        if not accepted:
+            result = _standardize_share_columns(pd.DataFrame())
+            result.attrs["excluded_conflicting_groups"] = excluded
+            return result
+        result = pd.concat(accepted, ignore_index=True)
+        result.attrs["excluded_conflicting_groups"] = excluded
+        return result
 
     out["reference_date"] = pd.to_datetime(out["Data_Referencia"], errors="coerce")
     out["available_from"] = pd.to_datetime(out["available_from"], errors="coerce")
@@ -248,14 +278,10 @@ def normalize_fre_issued_shares(
     keys = ["issuer_id", "reference_date", "filing_version", "document_id"]
     counts = ["ordinary_issued", "preferred_issued", "total_issued"]
     selected: list[pd.DataFrame] = []
-    excluded_conflicting_groups = 0
     for _, group in out.groupby(keys, sort=False, dropna=False):
         distinct_counts = group[counts].drop_duplicates()
         if len(distinct_counts) > 1:
             if group["capital_approval_date"].isna().any():
-                if exclude_conflicts:
-                    excluded_conflicting_groups += 1
-                    continue
                 raise ValueError(
                     "conflicting FRE Capital Emitido rows require dated alteration evidence"
                 )
@@ -268,18 +294,10 @@ def normalize_fre_issued_shares(
                 group = group.loc[group["capital_approval_date"].eq(latest_approval)].copy()
 
         if len(group[counts].drop_duplicates()) > 1:
-            if exclude_conflicts:
-                excluded_conflicting_groups += 1
-                continue
             raise ValueError(
                 "conflicting FRE Capital Emitido rows at the same latest alteration date"
             )
         selected.append(group.tail(1))
-
-    if not selected:
-        result = _standardize_share_columns(pd.DataFrame())
-        result.attrs["excluded_conflicting_groups"] = excluded_conflicting_groups
-        return result
 
     out = pd.concat(selected, ignore_index=True)
     out = out.sort_values(keys, kind="stable").reset_index(drop=True)
@@ -298,9 +316,7 @@ def normalize_fre_issued_shares(
     out["source_priority"] = 100
     out["source"] = "CVM_FRE_CAPITAL_SOCIAL"
     out["vintage_mode"] = "filing_receipt_pit"
-    result = _standardize_share_columns(out)
-    result.attrs["excluded_conflicting_groups"] = excluded_conflicting_groups
-    return result
+    return _standardize_share_columns(out)
 
 
 def _treasury_class(value: object) -> str:
