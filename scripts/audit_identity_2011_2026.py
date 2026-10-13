@@ -29,6 +29,7 @@ from mercado_financeiro.pit import (
 from mercado_financeiro.security import (
     DownloadPolicy,
     RetryPolicy,
+    SourceSecurityError,
     download_https_with_retry,
     validate_zip_bytes,
 )
@@ -50,7 +51,12 @@ def _token(file_id: int | str) -> str:
 def _require_zip_payload(payload: bytes) -> None:
     if not payload.startswith(b"PK"):
         raise OSError("official source returned a non-ZIP payload")
-    validate_zip_bytes(payload)
+    try:
+        validate_zip_bytes(payload)
+    except SourceSecurityError as exc:
+        if str(exc) == "invalid ZIP payload":
+            raise OSError("official source returned a corrupt ZIP payload") from exc
+        raise
 
 
 def _get(url: str, attempts: int = 5, *, require_zip: bool = False) -> bytes:
