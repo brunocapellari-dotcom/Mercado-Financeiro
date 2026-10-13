@@ -10,6 +10,7 @@ class SourceTier(str, Enum):
     PRIMARY_OFFICIAL = "primary_official"
     SPECIALIZED_BENCHMARK = "specialized_benchmark"
     LICENSED_VENDOR = "licensed_vendor"
+    SECONDARY_MARKET_DATA = "secondary_market_data"
     BROKER = "broker"
     NEWS = "news"
 
@@ -76,6 +77,16 @@ SOURCE_REGISTRY: dict[str, SourceContract] = {
         default_vintage_mode=VintageMode.BENCHMARK_ONLY,
         live_capable=False,
         credentials_required=False,
+    ),
+    "BRAPI": SourceContract(
+        name="BRAPI",
+        tier=SourceTier.SECONDARY_MARKET_DATA,
+        purpose="delayed polling quotes for zero-cost PAPER/SHADOW validation only",
+        hosts=frozenset({"brapi.dev"}),
+        default_vintage_mode=VintageMode.CONSERVATIVE_RETRIEVAL,
+        live_capable=False,
+        credentials_required=False,
+        canonical=False,
     ),
     "BTG_DATA_SERVICES": SourceContract(
         name="BTG_DATA_SERVICES",
