@@ -100,13 +100,6 @@ resource "google_bigquery_dataset_iam_member" "raw_transform_reader" {
   member     = "serviceAccount:${google_service_account.workload["transform"].email}"
 }
 
-resource "google_project_iam_member" "bigquery_job_user" {
-  for_each = toset(["ingest", "transform", "research"])
-  project  = var.project_id
-  role     = "roles/bigquery.jobUser"
-  member   = "serviceAccount:${google_service_account.workload[each.key].email}"
-}
-
 resource "google_bigquery_dataset_iam_member" "normalized_transform_editor" {
   dataset_id = google_bigquery_dataset.layer["normalized"].dataset_id
   role       = "roles/bigquery.dataEditor"
