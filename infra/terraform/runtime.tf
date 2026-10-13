@@ -1,6 +1,6 @@
 locals {
   holding_scheduler_service_account = "holding-worker-scheduler@${var.project_id}.iam.gserviceaccount.com"
-  execution_evidence_bucket         = "${var.project_id}-ai-execution-evidence"
+  execution_evidence_bucket         = google_storage_bucket.raw_evidence.name
 }
 
 resource "google_service_account" "paper_shadow" {
@@ -94,6 +94,16 @@ resource "google_cloud_run_v2_job" "paper_shadow" {
               version = "latest"
             }
           }
+        }
+
+        env {
+          name  = "MF_EVIDENCE_BUCKET"
+          value = local.execution_evidence_bucket
+        }
+
+        env {
+          name  = "MF_EVIDENCE_PREFIX"
+          value = "operational/mercado-financeiro"
         }
 
         resources {
