@@ -28,6 +28,7 @@ DEFAULT_ALLOWED_SOURCE_HOSTS = frozenset(
         "developers.anbima.com.br",
         "nefin.com.br",
         "www.nefin.com.br",
+        "brapi.dev",
     }
 )
 
