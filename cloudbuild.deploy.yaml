@@ -179,7 +179,7 @@ substitutions:
 
 timeout: 14400s
 
-serviceAccount: "projects/$PROJECT_ID/serviceAccounts/github-deployer@$PROJECT_ID.iam.gserviceaccount.com"
+serviceAccount: "projects/ai-holding-prod-bc/serviceAccounts/github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com"
 
 options:
   logging: CLOUD_LOGGING_ONLY
