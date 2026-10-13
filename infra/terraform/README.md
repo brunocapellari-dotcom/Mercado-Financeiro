@@ -1,62 +1,78 @@
-# Mercado Financeiro — Google Cloud PAPER/SHADOW data plane
+# Mercado Financeiro — Google Cloud PAPER/SHADOW
 
-This Terraform stack targets the shared AI Holding Google Cloud project
-`ai-holding-prod-bc` in `southamerica-east1`.
+Target:
 
-It does not create a parallel cloud platform. It reuses the Holding foundation and
-declares Mercado Financeiro-specific resources only:
+- project: `ai-holding-prod-bc`;
+- region: `southamerica-east1`;
+- executor: Google Cloud Build;
+- runtime: Cloud Run Jobs;
+- cadence: Cloud Scheduler;
+- image registry: existing Holding Artifact Registry `holding`;
+- Terraform state: `gs://ai-holding-prod-bc-tfstate/mercado-financeiro/prod`.
 
-- private/versioned GCS raw-evidence bucket;
-- BigQuery datasets for `raw`, `normalized`, `canonical`, `derived`,
-  `analytics` and isolated `research`;
-- least-privilege ingest/transform/research/read-only service accounts;
-- dedicated `mf-paper-shadow` runtime service account;
-- Secret Manager metadata `mf-authorized-price-report-url`;
-- private Cloud Run Job `mf-paper-shadow`, disabled by default;
-- invoker binding for the existing Holding bounded scheduler identity.
+GitHub Actions is not used.
 
-## Safety defaults
+## Data plane
 
-`deploy_paper_shadow=false` by default.
+Datasets:
 
-The job cannot be created unless `runtime_image_ref` is an immutable
-`@sha256:` reference inside the shared Holding Artifact Registry.
+- `mf_raw`;
+- `mf_normalized`;
+- `mf_canonical`;
+- `mf_derived`;
+- `mf_analytics`;
+- `mf_research`.
 
-LIVE trading is not represented by any Terraform variable, identity, secret or
-resource in this stack.
+The raw evidence bucket is private, versioned, public-access-prevention enabled and non-destructive by default.
 
-The market-data secret contains no version in Terraform. A human must first provide
-an authorized/licensed current market-data source and add its secret version outside
-source control.
+## PAPER/SHADOW runtime
 
-## State
+`mf-paper-shadow`:
 
-Production state uses the existing Holding state bucket:
+- dedicated service account;
+- no broker credential;
+- no LIVE adapter;
+- BRAPI delayed polling market data;
+- default zero-cost sandbox ticker PETR4;
+- freshness gate;
+- simulated fills only;
+- 1 vCPU / 512 MiB;
+- operational evidence written append-only to GCS.
 
-- bucket: `ai-holding-prod-bc-tfstate`;
-- prefix: `mercado-financeiro/prod`.
+Scheduler:
 
-Do not share the Holding Control Plane Terraform state.
+- `mf-paper-shadow-market-hours`;
+- default every 30 minutes, weekdays, 10:00–17:59 America/Sao_Paulo;
+- bounded retry;
+- invokes only the private Cloud Run Job.
 
-## Evidence
+## Build and deploy
 
-Operational PAPER/SHADOW evidence is written append-only under
-`operational/mercado-financeiro/` in the same versioned raw-evidence bucket. The
-runtime has `roles/storage.objectCreator`, not object delete/update permissions.
+`cloudbuild.yaml` validates the repository.
 
-## Deployment gate
+`cloudbuild.deploy.yaml` performs the production PAPER/SHADOW deployment and two mandatory acceptance runs.
 
-Before apply:
+Images are accepted only by immutable Artifact Registry digest.
 
-1. full-project-gate and CodeQL green on the same commit;
-2. Terraform fmt/init/validate green;
-3. container build and PAPER smoke green;
-4. Holding WIF PR #67 approved/applied;
-5. authorized market-data secret version present;
-6. Terraform plan contains no delete action.
+Terraform rejects automatic destruction through explicit release checks and protected resources.
 
-The manual `deploy-paper-shadow` workflow then applies the plan and requires two
-successful Cloud Run Job executions without code/config edits.
+## One-time Google dependency
 
-Never add service-account JSON keys, broker credentials, public buckets, project
-Owner/Editor roles, or destructive automatic teardown.
+Connect the GitHub repository to Cloud Build and verify the deploy service account permissions.
+
+The existing deployer from the Holding is reused:
+`github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com`.
+
+Additional project roles required by this stack if not already present:
+
+- `roles/bigquery.admin`;
+- `roles/storage.admin`;
+- `roles/logging.logWriter`.
+
+No static key should be created.
+
+## Market data
+
+BRAPI is deliberately isolated to PAPER/SHADOW. It does not replace B3/CVM canonical historical data and must not be promoted to LIVE execution.
+
+The no-key sandbox is limited to the documented sandbox tickers enforced in `variables.tf`. Broader coverage later can use a BRAPI key or another licensed provider without changing the vendor-neutral market-data interface.
