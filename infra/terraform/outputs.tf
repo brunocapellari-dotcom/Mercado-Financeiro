@@ -23,3 +23,12 @@ output "paper_shadow_job" {
 output "paper_shadow_scheduler" {
   value = var.deploy_paper_shadow ? google_cloud_scheduler_job.paper_shadow[0].name : null
 }
+
+
+output "bigquery_job_user_service_accounts" {
+  value = {
+    ingest    = google_service_account.workload["ingest"].email
+    transform = google_service_account.workload["transform"].email
+    research  = google_service_account.workload["research"].email
+  }
+}
