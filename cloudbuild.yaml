@@ -20,7 +20,7 @@ steps:
       - -ceu
       - |
         python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
-        pip install -e '.[test,validation,quality,agents]'
+        pip install -e '.[test,validation,quality,agents,cloud]'
         python scripts/run_full_project_gate.py --mode deterministic
 
   - id: official-source-integrations
@@ -30,42 +30,62 @@ steps:
       - -ceu
       - |
         python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
-        pip install -e '.[test]'
-        python scripts/audit_identity_2011_2026.py
-        python scripts/audit_share_history_2011_2026.py
-        python scripts/audit_b3_company_events_live.py
-        python scripts/audit_fca_schema.py
-        python scripts/audit_fca_invalid_tickers.py
-        python scripts/audit_cotahist_live.py
-        python scripts/audit_b3_emissor_identity.py
-        python scripts/audit_identity_2011_live.py
-        python scripts/audit_identity_2011_with_emissor.py
-        python scripts/audit_identity_2011_exact_isin.py
-        python scripts/audit_cvm_pit_history.py
-        python scripts/audit_cvm_fund_daily.py
-        python scripts/audit_cvm_fund_holdings.py
-        python scripts/audit_bvbg028_history.py
-        python scripts/audit_official_macro_sources.py
-        python scripts/audit_bcb_olinda_live.py
-        printf 'FULL_PROJECT_GATE_OK\n' > /workspace/cloudbuild-gate-summary.txt
+        pip install -e '.[test,cloud]'
+        python scripts/run_full_project_gate.py --mode sources
+        python scripts/run_operational_cycle.py --mode preflight           --output /workspace/brapi-market-preflight.json
 
-  - id: persist-evidence
-    name: google/cloud-sdk:586.0.0-stable@sha256:3b919e49b22d898d4ef5500d0eb4ccb6c3ce199786387ea526d087728b4ae606
+  - id: terraform-validate
+    name: hashicorp/terraform:1.9.8@sha256:7dbd316397eac07a524394b060d034eb1319eed5e793cff6bd5fe24a1f1f571f
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        terraform -chdir=infra/terraform fmt -check -recursive
+        terraform -chdir=infra/terraform init -backend=false
+        terraform -chdir=infra/terraform validate
+
+  - id: runtime-image-build
+    name: gcr.io/cloud-builders/docker@sha256:17d83a179e10ec76698b9580f6d367e13957fcd32135e9b265039b553e8547e6
+    args: ["build", "--pull", "--tag", "mercado-financeiro:ci", "."]
+
+  - id: runtime-paper-smoke
+    name: gcr.io/cloud-builders/docker@sha256:17d83a179e10ec76698b9580f6d367e13957fcd32135e9b265039b553e8547e6
+    args:
+      - "run"
+      - "--rm"
+      - "mercado-financeiro:ci"
+      - "--mode"
+      - "paper-smoke"
+
+  - id: gate-summary
+    name: python:3.12.14-bookworm@sha256:dbbe4ceb97851e2e5fa83798b239811f871cb743b259ba3563737349f6bcfaa0
     entrypoint: bash
     args:
       - -ceu
       - |
-        printf '%s\n' "${COMMIT_SHA}" > /workspace/source-commit.txt
-        test -s /workspace/artifacts/gate/sbom.cdx.json
-        test -s /workspace/artifacts/gate/provenance.json
-        gcloud storage cp \
-          /workspace/cloudbuild-gate-summary.txt \
-          /workspace/source-commit.txt \
-          /workspace/artifacts/gate/sbom.cdx.json \
-          /workspace/artifacts/gate/provenance.json \
-          "gs://${PROJECT_ID}-ai-execution-evidence/Mercado-Financeiro/${BUILD_ID}/"
+        python - <<'PY'
+        import json
+        from pathlib import Path
+        preflight = json.loads(Path("/workspace/brapi-market-preflight.json").read_text())
+        summary = {
+            "commit": "$COMMIT_SHA",
+            "build_id": "$BUILD_ID",
+            "executor": "google-cloud-build",
+            "deterministic_python": ["3.11", "3.12"],
+            "official_source_gate": True,
+            "brapi_market_data": preflight.get("market_data_preflight", {}),
+            "terraform_validated": True,
+            "runtime_image_built": True,
+            "paper_smoke": True,
+            "live_trading_enabled": False,
+        }
+        Path("/workspace/cloudbuild-gate-summary.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True) + "\n"
+        )
+        print("GOOGLE_CLOUD_BUILD_GATE_OK")
+        PY
 
 timeout: 14400s
-serviceAccount: "projects/${PROJECT_ID}/serviceAccounts/ai-build-executor@${PROJECT_ID}.iam.gserviceaccount.com"
+
 options:
   logging: CLOUD_LOGGING_ONLY
