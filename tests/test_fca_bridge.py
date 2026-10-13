@@ -106,11 +106,17 @@ def _write_fca_package(path: Path, year: int = 2019) -> None:
         )
 
 
-def test_normalize_fca_share_ticker_only_normalizes_legacy_share_suffix():
+def test_normalize_fca_share_ticker_accepts_observed_b3_shapes_and_rejects_junk():
     assert normalize_fca_share_ticker("BSLI03", "ordinary") == "BSLI3"
     assert normalize_fca_share_ticker("BRSR06", "preferred") == "BRSR6"
     assert normalize_fca_share_ticker("PETR4", "preferred") == "PETR4"
-    assert normalize_fca_share_ticker("INVALID", "ordinary") is None
+    assert normalize_fca_share_ticker("B3SA3", "ordinary") == "B3SA3"
+    assert normalize_fca_share_ticker("CAL4", "preferred") == "CAL4"
+    assert normalize_fca_share_ticker("EQMA3B", "ordinary") == "EQMA3B"
+    assert normalize_fca_share_ticker("GOLL54", "preferred") == "GOLL54"
+    assert normalize_fca_share_ticker("BRGE11", "preferred") == "BRGE11"
+    for junk in ("INVALID", "NÃO", "NÃO HÁ", "00", "000000", "5.4", "5,4", "SJOS"):
+        assert normalize_fca_share_ticker(junk, "ordinary") is None
 
 
 def test_fca_bridge_joins_exact_submission_and_keeps_reported_trading_interval(tmp_path: Path):

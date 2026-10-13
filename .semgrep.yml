@@ -1,0 +1,45 @@
+rules:
+  - id: python-no-eval
+    languages: [python]
+    message: Dynamic eval is forbidden in Mercado Financeiro runtime code.
+    severity: ERROR
+    pattern: eval(...)
+
+  - id: python-no-exec
+    languages: [python]
+    message: Dynamic exec is forbidden in Mercado Financeiro runtime code.
+    severity: ERROR
+    pattern: exec(...)
+
+  - id: python-no-os-system
+    languages: [python]
+    message: os.system is forbidden; use bounded subprocess invocation without a shell.
+    severity: ERROR
+    pattern: os.system(...)
+
+  - id: python-no-subprocess-shell
+    languages: [python]
+    message: subprocess shell=True is forbidden.
+    severity: ERROR
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+
+  - id: python-no-unsafe-pickle-load
+    languages: [python]
+    message: Deserializing pickle from runtime data is forbidden.
+    severity: ERROR
+    patterns:
+      - pattern-either:
+          - pattern: pickle.load(...)
+          - pattern: pickle.loads(...)
+
+  - id: python-no-disabled-tls-verification
+    languages: [python]
+    message: TLS verification may not be disabled.
+    severity: ERROR
+    pattern: requests.$FUNC(..., verify=False, ...)
+
+  - id: python-no-tempfile-mktemp
+    languages: [python]
+    message: tempfile.mktemp is race-prone; use a secure managed temporary file/directory.
+    severity: ERROR
+    pattern: tempfile.mktemp(...)

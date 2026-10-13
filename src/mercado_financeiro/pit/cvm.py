@@ -38,21 +38,56 @@ def _read_csv(inner_zip: bytes, member: str) -> pd.DataFrame:
             return pd.read_csv(f, sep=";", encoding="latin-1", dtype=str)
 
 
-def audit_fre_capital_social(path: str | Path, year: int) -> tuple[pd.DataFrame, SnapshotAudit]:
-    """Attach the true availability date to FRE capital-social rows.
+def _fre_section_with_availability(
+    inner_zip: bytes,
+    year: int,
+    *,
+    member: str,
+    dataset: str,
+) -> tuple[pd.DataFrame, SnapshotAudit]:
+    """Join one FRE child section to the exact filing receipt ledger.
 
-    Structured FRE sections are latest-snapshot materializations. `available_from`
-    must therefore come from the submission ledger's DT_RECEB for the exact
-    ID_Documento/Versao represented by each row.
+    FRE child sections expose ``ID_Documento`` and therefore must be linked to
+    ``DT_RECEB`` by document id plus issuer/reference/version. A child row that cannot
+    be tied to its exact filing fails closed rather than receiving a synthetic date.
     """
-    inner = _inner_zip_bytes(path)
-    meta = _read_csv(inner, f"fre_cia_aberta_{year}.csv")
-    cap = _read_csv(inner, f"fre_cia_aberta_capital_social_{year}.csv")
+    meta = _read_csv(inner_zip, f"fre_cia_aberta_{year}.csv")
+    section = _read_csv(inner_zip, member)
 
+    required_meta = {"CNPJ_CIA", "DT_REFER", "VERSAO", "ID_DOC", "DT_RECEB"}
+    required_section = {
+        "CNPJ_Companhia",
+        "Data_Referencia",
+        "Versao",
+        "ID_Documento",
+    }
+    missing_meta = required_meta - set(meta.columns)
+    missing_section = required_section - set(section.columns)
+    if missing_meta:
+        raise ValueError(f"FRE {year} ledger missing columns: {sorted(missing_meta)}")
+    if missing_section:
+        raise ValueError(f"FRE {year} {member} missing columns: {sorted(missing_section)}")
+
+    meta = meta.copy()
     meta["DT_RECEB"] = pd.to_datetime(meta["DT_RECEB"], errors="coerce")
-    keys = cap[["CNPJ_Companhia", "Data_Referencia", "Versao", "ID_Documento"]].drop_duplicates()
+    if meta["DT_RECEB"].isna().any():
+        raise ValueError(f"FRE {year} filing ledger contains invalid DT_RECEB")
+
     ledger = meta[["CNPJ_CIA", "DT_REFER", "VERSAO", "ID_DOC", "DT_RECEB"]].copy()
-    out = cap.merge(
+    ledger_conflicts = (
+        ledger.groupby(["CNPJ_CIA", "DT_REFER", "VERSAO", "ID_DOC"], dropna=False)[
+            "DT_RECEB"
+        ]
+        .nunique(dropna=False)
+        .gt(1)
+    )
+    if ledger_conflicts.any():
+        raise ValueError(f"FRE {year} filing ledger contains conflicting receipt timestamps")
+    ledger = ledger.drop_duplicates(
+        ["CNPJ_CIA", "DT_REFER", "VERSAO", "ID_DOC"], keep="last"
+    )
+
+    out = section.merge(
         ledger,
         left_on=["CNPJ_Companhia", "Data_Referencia", "Versao", "ID_Documento"],
         right_on=["CNPJ_CIA", "DT_REFER", "VERSAO", "ID_DOC"],
@@ -60,22 +95,56 @@ def audit_fre_capital_social(path: str | Path, year: int) -> tuple[pd.DataFrame,
         validate="many_to_one",
     ).rename(columns={"DT_RECEB": "available_from"})
 
-    per_company_versions = keys.groupby("CNPJ_Companhia")["Versao"].nunique()
-    receipt = out[["CNPJ_Companhia", "available_from"]].drop_duplicates()["available_from"]
+    versions = (
+        section[["CNPJ_Companhia", "Versao"]]
+        .drop_duplicates()
+        .groupby("CNPJ_Companhia")["Versao"]
+        .nunique()
+    )
+    receipt = out[["CNPJ_Companhia", "available_from"]].drop_duplicates()[
+        "available_from"
+    ]
     audit = SnapshotAudit(
-        dataset="FRE_CAPITAL_SOCIAL",
+        dataset=dataset,
         year=year,
         rows=len(out),
         companies=out["CNPJ_Companhia"].nunique(),
         missing_available_from=int(out["available_from"].isna().sum()),
-        max_versions_per_company=int(per_company_versions.max()),
-        receipt_min=receipt.min(),
-        receipt_median=receipt.median(),
-        receipt_max=receipt.max(),
+        max_versions_per_company=int(versions.max()) if len(versions) else 0,
+        receipt_min=receipt.min() if len(receipt) else None,
+        receipt_median=receipt.median() if len(receipt) else None,
+        receipt_max=receipt.max() if len(receipt) else None,
     )
     if audit.missing_available_from:
-        raise ValueError(f"FRE {year}: {audit.missing_available_from} rows lack available_from")
+        raise ValueError(
+            f"FRE {year} {dataset}: {audit.missing_available_from} rows lack available_from"
+        )
     return out, audit
+
+
+def audit_fre_capital_social(path: str | Path, year: int) -> tuple[pd.DataFrame, SnapshotAudit]:
+    """Attach the true filing-availability date to FRE capital-social rows."""
+    inner = _inner_zip_bytes(path)
+    return _fre_section_with_availability(
+        inner,
+        year,
+        member=f"fre_cia_aberta_capital_social_{year}.csv",
+        dataset="FRE_CAPITAL_SOCIAL",
+    )
+
+
+def audit_fre_treasury_last_exercise(
+    path: str | Path,
+    year: int,
+) -> tuple[pd.DataFrame, SnapshotAudit]:
+    """Attach exact filing receipts to FRE end-of-exercise treasury-share rows."""
+    inner = _inner_zip_bytes(path)
+    return _fre_section_with_availability(
+        inner,
+        year,
+        member=f"fre_cia_aberta_valor_mobiliario_tesouraria_ultimo_exercicio_{year}.csv",
+        dataset="FRE_TREASURY_LAST_EXERCISE",
+    )
 
 
 def audit_dfp_composition_capital(path: str | Path, year: int) -> tuple[pd.DataFrame, SnapshotAudit]:

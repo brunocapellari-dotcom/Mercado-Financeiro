@@ -3,9 +3,9 @@ from __future__ import annotations
 from hashlib import sha256
 from pathlib import Path
 import tempfile
-import urllib.request
 
 from mercado_financeiro.b3.cotahist import read_cotahist, select_regular_share_quotes
+from mercado_financeiro.security import DownloadPolicy, RetryPolicy, download_https_with_retry
 
 URL_TEMPLATE = "https://bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_A{year}.ZIP"
 YEARS = (2011,)
@@ -13,17 +13,14 @@ YEARS = (2011,)
 
 def _download(year: int, target: Path) -> str:
     url = URL_TEMPLATE.format(year=year)
-    request = urllib.request.Request(
+    payload = download_https_with_retry(
         url,
-        headers={"User-Agent": "Mercado-Financeiro-PIT-Audit/1.0"},
+        DownloadPolicy(max_bytes=400_000_000, timeout_seconds=180.0),
+        retry_policy=RetryPolicy(attempts=5, initial_delay_seconds=2.0, max_delay_seconds=20.0),
+        headers={"Accept": "application/zip,application/octet-stream;q=0.9,*/*;q=0.8"},
     )
-    digest = sha256()
-    with urllib.request.urlopen(request, timeout=120) as response:  # nosec B310: fixed B3 host
-        with target.open("wb") as output:
-            while chunk := response.read(1024 * 1024):
-                digest.update(chunk)
-                output.write(chunk)
-    return digest.hexdigest()
+    target.write_bytes(payload)
+    return sha256(payload).hexdigest()
 
 
 def main() -> None:

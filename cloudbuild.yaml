@@ -1,0 +1,103 @@
+steps:
+  - id: sast-semgrep
+    name: semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b
+    entrypoint: semgrep
+    args:
+      - scan
+      - --config
+      - .semgrep.yml
+      - --error
+      - --metrics=off
+      - src
+      - scripts
+
+  - id: secret-scan
+    name: ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f
+    args: ["dir", "/workspace", "--redact", "--no-banner"]
+
+  - id: deterministic-python-311
+    name: python:3.11.16-bookworm@sha256:b99029c95d3d37fb1e4e76d287f7984373dca77c665885986e31b2c95260c13c
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+        pip install -e '.[test,validation,quality,agents]'
+        python scripts/run_full_project_gate.py --mode deterministic
+
+  - id: deterministic-python-312
+    name: python:3.12.14-bookworm@sha256:dbbe4ceb97851e2e5fa83798b239811f871cb743b259ba3563737349f6bcfaa0
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+        pip install -e '.[test,validation,quality,agents,cloud]'
+        python scripts/run_full_project_gate.py --mode deterministic
+
+  - id: official-source-integrations
+    name: python:3.12.14-bookworm@sha256:dbbe4ceb97851e2e5fa83798b239811f871cb743b259ba3563737349f6bcfaa0
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel
+        pip install -e '.[test,cloud]'
+        python scripts/run_full_project_gate.py --mode sources
+        python scripts/run_operational_cycle.py --mode preflight           --output /workspace/brapi-market-preflight.json
+
+  - id: terraform-validate
+    name: hashicorp/terraform:1.9.8@sha256:7dbd316397eac07a524394b060d034eb1319eed5e793cff6bd5fe24a1f1f571f
+    entrypoint: sh
+    args:
+      - -ceu
+      - |
+        terraform -chdir=infra/terraform fmt -check -recursive
+        terraform -chdir=infra/terraform init -backend=false
+        terraform -chdir=infra/terraform validate
+
+  - id: runtime-image-build
+    name: gcr.io/cloud-builders/docker@sha256:17d83a179e10ec76698b9580f6d367e13957fcd32135e9b265039b553e8547e6
+    args: ["build", "--pull", "--tag", "mercado-financeiro:ci", "."]
+
+  - id: runtime-paper-smoke
+    name: gcr.io/cloud-builders/docker@sha256:17d83a179e10ec76698b9580f6d367e13957fcd32135e9b265039b553e8547e6
+    args:
+      - "run"
+      - "--rm"
+      - "mercado-financeiro:ci"
+      - "--mode"
+      - "paper-smoke"
+
+  - id: gate-summary
+    name: python:3.12.14-bookworm@sha256:dbbe4ceb97851e2e5fa83798b239811f871cb743b259ba3563737349f6bcfaa0
+    entrypoint: bash
+    args:
+      - -ceu
+      - |
+        python - <<'PY'
+        import json
+        from pathlib import Path
+        preflight = json.loads(Path("/workspace/brapi-market-preflight.json").read_text())
+        summary = {
+            "commit": "$COMMIT_SHA",
+            "build_id": "$BUILD_ID",
+            "executor": "google-cloud-build",
+            "deterministic_python": ["3.11", "3.12"],
+            "official_source_gate": True,
+            "brapi_market_data": preflight.get("market_data_preflight", {}),
+            "terraform_validated": True,
+            "runtime_image_built": True,
+            "paper_smoke": True,
+            "live_trading_enabled": False,
+        }
+        Path("/workspace/cloudbuild-gate-summary.json").write_text(
+            json.dumps(summary, indent=2, sort_keys=True) + "\n"
+        )
+        print("GOOGLE_CLOUD_BUILD_GATE_OK")
+        PY
+
+timeout: 14400s
+
+options:
+  logging: CLOUD_LOGGING_ONLY

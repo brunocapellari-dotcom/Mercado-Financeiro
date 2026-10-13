@@ -85,7 +85,7 @@ def test_enrichment_resolves_only_static_identity_and_marks_later_evidence():
     assert audit.mapped_volume_ratio == 1.0
 
 
-def test_source_conflict_fails_closed():
+def test_weaker_current_prefix_disagreement_does_not_erase_historical_fca_identity():
     payload = _emissor_zip(
         [["PETR", "PETROLEO BRASILEIRO S A PETROBRAS", "33000167000101", "20000101"]]
     )
@@ -95,6 +95,8 @@ def test_source_conflict_fails_closed():
     )
     universe = _universe(status="resolved", issuer_id="33.592.510/0001-54")
     enriched, audit = enrich_historical_identity_with_b3_emissor(universe, evidence)
-    assert enriched.loc[0, "identity_mapping_status"] == "ambiguous_source_conflict"
-    assert pd.isna(enriched.loc[0, "issuer_id"])
+    assert enriched.loc[0, "identity_mapping_status"] == "resolved"
+    assert enriched.loc[0, "issuer_id"] == "33.592.510/0001-54"
+    assert bool(enriched.loc[0, "identity_weaker_source_disagreed"])
     assert audit.conflict_rows == 1
+    assert audit.mapped_volume_ratio == 1.0

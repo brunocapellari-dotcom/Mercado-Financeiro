@@ -112,7 +112,7 @@ def build_security_master_scd2(
                 if current["security_id"] != str(row["security_id"]):
                     raise ValueError(f"security_id drift inside listing_id {listing_id}")
                 current["last_observed_date"] = date
-                current["snapshot_count"] = int(current["snapshot_count"]) + 1
+                current["snapshot_count"] = int(str(current["snapshot_count"])) + 1
 
     intervals.extend(active.values())
     out = pd.DataFrame(intervals)

@@ -19,6 +19,10 @@ class SourceManifest:
     upstream_id: str | None = None
     parser_version: str | None = None
     parent_sha256: tuple[str, ...] = ()
+    run_id: str | None = None
+    commit_sha: str | None = None
+    content_type: str | None = None
+    license_tag: str | None = None
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -45,6 +49,10 @@ def build_source_manifest(
     upstream_id: str | None = None,
     parser_version: str | None = None,
     parent_sha256: tuple[str, ...] = (),
+    run_id: str | None = None,
+    commit_sha: str | None = None,
+    content_type: str | None = None,
+    license_tag: str | None = None,
 ) -> SourceManifest:
     if not source_name.strip():
         raise ValueError("source_name is required")
@@ -58,6 +66,18 @@ def build_source_manifest(
         if len(normalized) != 64 or any(ch not in "0123456789abcdef" for ch in normalized):
             raise ValueError("parent SHA-256 values must be 64-character hex digests")
         parents.append(normalized)
+    if run_id is not None and (not run_id.strip() or len(run_id.strip()) > 256):
+        raise ValueError("run_id must be non-empty and <= 256 characters when provided")
+    if commit_sha is not None:
+        commit = commit_sha.strip().lower()
+        if not 7 <= len(commit) <= 64 or any(ch not in "0123456789abcdef" for ch in commit):
+            raise ValueError("commit_sha must be a 7-64 character hexadecimal revision")
+    else:
+        commit = None
+    for field_name, value in (("content_type", content_type), ("license_tag", license_tag)):
+        if value is not None and (not value.strip() or "\r" in value or "\n" in value or len(value.strip()) > 256):
+            raise ValueError(f"{field_name} must be a single non-empty line <= 256 characters")
+
     return SourceManifest(
         source_name=source_name.strip(),
         source_url=source_url,
@@ -69,4 +89,8 @@ def build_source_manifest(
         upstream_id=upstream_id,
         parser_version=parser_version,
         parent_sha256=tuple(parents),
+        run_id=run_id.strip() if run_id is not None else None,
+        commit_sha=commit,
+        content_type=content_type.strip() if content_type is not None else None,
+        license_tag=license_tag.strip() if license_tag is not None else None,
     )

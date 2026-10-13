@@ -207,12 +207,15 @@ def enrich_historical_identity_with_b3_emissor(
     universe: pd.DataFrame,
     emissor: pd.DataFrame,
 ) -> tuple[pd.DataFrame, IdentityEnrichmentAudit]:
-    """Fill unresolved historical issuer identities from deterministic B3 evidence.
+    """Fill unresolved issuer identities from weaker current B3 prefix evidence.
 
-    Existing resolved FCA mappings are never silently overwritten. If B3 and FCA
-    disagree on a resolved issuer, the row fails closed as a source conflict. B3
-    EMISSOR evidence is allowed only for static historical identity reconstruction;
-    it does not change publication-time eligibility of fundamentals or share counts.
+    Source precedence is deliberately asymmetric. A historically observed FCA
+    ticker->issuer mapping is stronger than a *current* four-character B3 issuer
+    prefix because issuer roots can be reused after reorganizations. Therefore a
+    disagreement is recorded in ``identity_weaker_source_disagreed`` but does not
+    erase the already resolved historical identity. B3 EMISSOR may fill unresolved
+    rows only. Security-specific exact ISIN evidence is applied later and can
+    legitimately supersede either source.
     """
     required = {
         "ticker",
@@ -259,16 +262,17 @@ def enrich_historical_identity_with_b3_emissor(
     out = out.merge(evidence, on="ticker", how="left", validate="many_to_one")
 
     b3_resolved = out["b3_emissor_mapping_status"].eq("resolved")
-    conflict = (
+    disagreement = (
         resolved_before_mask
         & b3_resolved
         & out["issuer_id"].notna()
         & out["b3_emissor_issuer_id"].notna()
         & out["issuer_id"].astype(str).ne(out["b3_emissor_issuer_id"].astype(str))
     )
-    if conflict.any():
-        out.loc[conflict, "identity_mapping_status"] = "ambiguous_source_conflict"
-        out.loc[conflict, "issuer_id"] = pd.NA
+    prior_weaker_disagreement = out.get(
+        "identity_weaker_source_disagreed", pd.Series(False, index=out.index)
+    ).fillna(False).astype(bool)
+    out["identity_weaker_source_disagreed"] = prior_weaker_disagreement | disagreement
 
     unresolved = out["identity_mapping_status"].astype(str).str.startswith("unresolved")
     fill = unresolved & b3_resolved
@@ -298,7 +302,7 @@ def enrich_historical_identity_with_b3_emissor(
         resolved_before=resolved_before,
         resolved_after=int(resolved_after_mask.sum()),
         newly_resolved_rows=int(fill.sum()),
-        conflict_rows=int(conflict.sum()),
+        conflict_rows=int(disagreement.sum()),
         mapped_row_ratio=float(resolved_after_mask.mean()) if len(out) else 0.0,
         mapped_volume_ratio=float(mapped_volume / total_volume) if total_volume > 0 else 0.0,
         unique_issuers=out.loc[resolved_after_mask, "issuer_id"].nunique(),

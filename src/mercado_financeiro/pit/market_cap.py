@@ -195,11 +195,11 @@ def compute_market_cap_asof(
     )
 
     if joined.empty:
-        issuer_rows = shares[["issuer_id"]].copy()
-        issuer_rows["asof"] = ts
-        issuer_rows["issuer_market_cap"] = pd.NA
-        issuer_rows["market_cap_status"] = "unresolved_no_priced_security"
-        return MarketCapResult(security_caps=joined, issuer_caps=issuer_rows)
+        unresolved_issuer_rows = shares[["issuer_id"]].copy()
+        unresolved_issuer_rows["asof"] = ts
+        unresolved_issuer_rows["issuer_market_cap"] = pd.NA
+        unresolved_issuer_rows["market_cap_status"] = "unresolved_no_priced_security"
+        return MarketCapResult(security_caps=joined, issuer_caps=unresolved_issuer_rows)
 
     joined["class_shares_outstanding"] = joined.apply(
         lambda row: (

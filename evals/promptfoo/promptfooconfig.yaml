@@ -1,0 +1,19 @@
+description: Mercado Financeiro research-agent regression suite
+
+prompts:
+  - "{{input}}"
+
+providers:
+  - id: file://evals/promptfoo/provider.py
+    config:
+      timeout_seconds: 60
+
+defaultTest:
+  assert:
+    - type: python
+      value: file://evals/promptfoo/assertions.py:hypothesis_only
+    - type: python
+      value: file://evals/promptfoo/assertions.py:no_execution_authority
+
+tests:
+  - file://evals/promptfoo/tests.py:generate_tests
