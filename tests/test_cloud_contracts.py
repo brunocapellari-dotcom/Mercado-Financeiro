@@ -8,11 +8,21 @@ from mercado_financeiro.cloud import (
 )
 from mercado_financeiro.security import build_source_manifest
 
-def test_cloud_layout_has_four_layers():
-    assert [x.dataset_id for x in canonical_cloud_datasets()] == ["mf_raw","mf_normalized","mf_features","mf_research"]
+def test_cloud_layout_matches_final_data_flow():
+    assert [x.dataset_id for x in canonical_cloud_datasets()] == [
+        "mf_raw",
+        "mf_normalized",
+        "mf_canonical",
+        "mf_derived",
+        "mf_analytics",
+        "mf_research",
+    ]
     tables = {x.table_id: x for x in canonical_cloud_tables()}
     assert tables["fundamentals"].pit_required
     assert tables["source_manifest"].append_only
+    assert tables["market_quotes"].layer.value == "canonical"
+    assert tables["feature_mart"].layer.value == "derived"
+    assert tables["paper_run"].layer.value == "analytics"
 
 def test_raw_object_key_is_content_addressed():
     manifest = build_source_manifest(b"abc", source_name="B3 COTAHIST", source_url="https://www.b3.com.br/test", retrieved_at=datetime(2026,9,29,12,tzinfo=timezone.utc))
