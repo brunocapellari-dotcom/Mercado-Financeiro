@@ -13,7 +13,23 @@ provider "google" {
   region  = var.region
 }
 
+resource "google_project_service" "required" {
+  for_each           = local.required_services
+  project            = var.project_id
+  service            = each.value
+  disable_on_destroy = false
+}
+
 locals {
+  required_services = toset([
+    "artifactregistry.googleapis.com",
+    "bigquery.googleapis.com",
+    "cloudbuild.googleapis.com",
+    "cloudscheduler.googleapis.com",
+    "iam.googleapis.com",
+    "run.googleapis.com",
+    "storage.googleapis.com",
+  ])
   datasets = toset(["raw", "normalized", "canonical", "derived", "analytics", "research"])
   service_accounts = {
     ingest    = "mf-ingest"
