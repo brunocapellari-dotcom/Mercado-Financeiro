@@ -59,9 +59,9 @@ def main() -> int:
     failures: list[str] = []
     for path in sorted(Path(".github/workflows").glob("*.y*ml")):
         failures.extend(scan_workflow(path))
-    cloudbuild = Path("cloudbuild.yaml")
-    if cloudbuild.is_file():
-        failures.extend(scan_cloudbuild(cloudbuild))
+    for cloudbuild in sorted(Path(".").glob("cloudbuild*.yaml")):
+        if cloudbuild.is_file():
+            failures.extend(scan_cloudbuild(cloudbuild))
     if failures:
         print("WORKFLOW_SECURITY_SCAN_FAIL")
         for failure in failures:
