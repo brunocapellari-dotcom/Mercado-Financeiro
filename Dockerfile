@@ -11,7 +11,7 @@ COPY src ./src
 COPY scripts ./scripts
 
 RUN python -m pip install --upgrade 'pip>=26.2.1' 'setuptools>=83' wheel \
-    && pip install .
+    && pip install '.[cloud]'
 
 RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
