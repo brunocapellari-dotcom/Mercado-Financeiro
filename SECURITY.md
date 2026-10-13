@@ -11,8 +11,8 @@ This repository processes public market/regulatory data and research outputs. It
 - Network ingestion is HTTPS-only and allowlisted by source host.
 - Archives are validated before extraction for path traversal, symlinks, excessive member count, excessive expansion and suspicious compression ratios.
 - Secrets never enter code, logs, manifests, issue bodies or committed configuration.
-- GitHub Actions run with least-privilege `contents: read` unless a workflow has a documented exception.
-- Pull-request workflows must not expose privileged secrets to untrusted code.
+- Google Cloud Build is the canonical CI/CD executor; GitHub stores source code only.
+- Validation builds run without production deployment authority; privileged deploy builds are manual and restricted to promoted code.
 - Research datasets and model outputs must preserve point-in-time lineage; later revisions cannot silently overwrite earlier vintages.
 - Production/live capital remains disabled unless the independent data, model and risk gates are approved.
 
