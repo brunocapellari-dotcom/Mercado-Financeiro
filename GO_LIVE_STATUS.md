@@ -1,127 +1,162 @@
 # Mercado Financeiro — GO-LIVE STATUS
 
-Data de referência: 2026-10-13  
-Escopo deste gate: **PAPER/SHADOW somente**. Execução LIVE com dinheiro real permanece fora do escopo e desabilitada.
+Data de referência: 2026-10-13
 
-## Estado objetivo
+Escopo deste gate: **PAPER/SHADOW em Google Cloud**. Execução LIVE com dinheiro real permanece fora do escopo e desabilitada.
 
-A release somente pode ser considerada GO-LIVE PAPER/SHADOW quando, simultaneamente:
+## Arquitetura de execução aprovada
 
-1. gate completo de código, segurança, fontes e infraestrutura estiver verde no mesmo commit;
-2. imagem de runtime estiver publicada por digest imutável;
-3. Terraform estiver validado e aplicado sem ações destrutivas;
-4. fonte de preço atual estiver legalmente/autorizadamente disponível ao runtime;
-5. Secret Manager possuir a versão do segredo de acesso, sem segredo em Git/log;
-6. Cloud Run Job `mf-paper-shadow` estiver privado e invocável apenas pelas identidades autorizadas;
-7. duas execuções E2E consecutivas ocorrerem sem edição de código/configuração;
-8. evidência de cada execução estiver preservada no bucket RAW versionado;
-9. LIVE continuar sem identidade, segredo de broker ou caminho de submit de ordens reais.
+Código e revisão:
+GitHub -> Google Cloud Build
 
-## Evidência já comprovada
+Dados históricos/canônicos:
+B3 + CVM + BCB + NEFIN -> RAW -> NORMALIZED -> CANONICAL -> DERIVED -> ANALYTICS
 
-Commit **024ded70b2d28921ba36de1feb9d4bb144edc0c2**:
+Market data do piloto PAPER:
+BRAPI v2 delayed polling -> freshness gate -> synthetic PAPER spread -> deterministic risk -> simulated execution -> accounting -> immutable evidence
 
-- `full-project-gate`: PASS;
+Execução:
+Google Cloud Build -> Artifact Registry -> Terraform -> Cloud Run Job -> Cloud Scheduler
+
+GitHub Actions não faz parte da arquitetura operacional.
+
+## Último baseline integralmente executado
+
+Commit `024ded70b2d28921ba36de1feb9d4bb144edc0c2`:
+
+- whole-project gate: PASS;
 - CodeQL: PASS;
-- deterministic Python 3.11: PASS;
-- deterministic Python 3.12: PASS;
-- identidade histórica B3/CVM: PASS;
-- histórico de ações/FRE: PASS;
+- Python 3.11: PASS;
+- Python 3.12: PASS;
+- identidade B3/CVM 2011–2026: PASS;
+- FRE/share history: PASS;
 - BVBG: PASS;
 - macro/BCB: PASS;
 - CVM PIT: PASS;
 - eventos corporativos B3: PASS;
-- regressões/diagnósticos de fontes: PASS.
+- source diagnostics: PASS.
 
-Esse commit é a última evidência completa verde antes da camada operacional/deploy adicionada depois.
+Esse é o último baseline comprovado antes da migração do executor para Google.
 
-## Alterações operacionais posteriores ao último gate verde
+## Mudanças posteriores
 
-Na branch `architecture/segregated-market-stack` foram adicionados:
+A branch `architecture/segregated-market-stack` agora contém:
 
-- correção de marcação stale em PAPER/SHADOW, com regressão dedicada;
-- `scripts/run_operational_cycle.py` com source audit + PAPER smoke + market-data preflight;
-- fail-closed quando não existe fonte de preço autorizada;
-- imagem Docker non-root e base pinada por digest;
-- Terraform no projeto compartilhado `ai-holding-prod-bc`;
-- datasets `raw -> normalized -> canonical -> derived -> analytics`, com `research` isolado;
-- Cloud Run Job `mf-paper-shadow` com identidade própria;
-- Secret Manager metadata `mf-authorized-price-report-url`, sem versão/segredo no repositório;
-- evidência operacional append-only no bucket RAW versionado;
-- deploy somente por imagem Artifact Registry imutável `@sha256`;
-- workflow manual `deploy-paper-shadow.yml`;
-- validação de Terraform, imagem e PAPER smoke adicionada ao gate final;
-- PR de segurança da Holding #67 preparando WIF dedicado `mf-deploy-main`.
+- correção de stale marks em PAPER/SHADOW;
+- BRAPI market-data provider seguro e polling-only;
+- teste de schema baseado no SDK oficial BRAPI v2;
+- PETR4/VALE3/MGLU3/ITUB4 como sandbox zero-cost sem API key;
+- quote freshness gate;
+- synthetic bid/ask explicitamente classificado como PAPER, nunca como exchange quote;
+- PAPER cycle que pula dado stale ou janela fechada em vez de inventar execução;
+- runtime Docker non-root;
+- Cloud data layers: raw -> normalized -> canonical -> derived -> analytics;
+- Google Cloud Build como gate canônico;
+- Cloud Build deploy pipeline;
+- Artifact Registry image por digest imutável;
+- Terraform state isolado em `mercado-financeiro/prod`;
+- Cloud Run Job privado `mf-paper-shadow`;
+- Cloud Scheduler `mf-paper-shadow-market-hours`;
+- evidência append-only no bucket RAW versionado;
+- acceptance E2E obrigatório duas vezes sem edição;
+- qualquer Terraform plan com delete é rejeitado;
+- LIVE continua sem broker secret, broker adapter real ou identidade de execução.
 
-## Estado atual dos gates
+## Market data
 
-### DONE com evidência executada
+### PAPER/SHADOW zero-cost
 
-- núcleo determinístico;
-- testes Python 3.11/3.12 no commit verde;
-- segurança CodeQL no commit verde;
-- integração das fontes prioritárias cobertas pelo gate atual;
-- controles PIT e anti-lookahead;
-- risk/execution/accounting simulados;
-- PAPER/SHADOW sem BrokerAdapter real;
-- fail-closed de dados inconsistentes;
-- LIVE bloqueado por arquitetura.
+Provider primário do piloto: **BRAPI v2**.
 
-### READY / aguardando nova execução do CI
+Regras:
 
-- Terraform final;
-- Docker runtime;
-- novo operational cycle;
-- persistência de evidência;
-- cloud layer contract final;
-- gate `infra-validation`.
+- somente polling delayed;
+- sem WebSocket/live feed;
+- sandbox sem chave restrito aos tickers documentados no Terraform;
+- default: PETR4;
+- atualização esperada compatível com ciclo de 30 minutos;
+- quote stale é SKIP, não fill;
+- synthetic spread default: 20 bps;
+- proibido reutilizar esse feed como prova de cotação executável;
+- proibido promover o adapter para LIVE.
 
-Em 13/10/2026, os workflows GitHub Actions do Mercado Financeiro e da AI-Holding passaram a falhar antes de qualquer step ser iniciado. Os jobs apresentam zero etapas executadas, inclusive CodeQL. Isso caracteriza indisponibilidade/alocação externa do executor e não fornece evidência de regressão do código.
+Yahoo/yfinance não é fonte canônica e não entra no runtime primário.
 
-## BLOCKERS HUMANOS
+### Histórico/PIT
 
-### H1 — Aprovar a nova fronteira WIF
+B3/CVM/BCB/NEFIN continuam canônicos conforme contratos já auditados. BRAPI não substitui essas fontes.
 
-PR da Holding: **AI-Holding #67** — `security: authorize Mercado Financeiro keyless PAPER/SHADOW deploy`.
+## Executor Google
 
-A PR cria um provider dedicado e estreito:
+`cloudbuild.yaml` é o gate de release:
 
-- repositório exato: `brunocapellari-dotcom/Mercado-Financeiro`;
-- branch exata: `main`;
-- workflow exato: `.github/workflows/deploy-paper-shadow.yml`;
-- sem chave JSON;
-- somente impersonação do deployer existente;
-- nenhuma permissão de broker/LIVE.
+1. secret scan;
+2. Python 3.11 deterministic gate;
+3. Python 3.12 deterministic gate;
+4. official-source integrations;
+5. BRAPI preflight;
+6. Terraform fmt/init/validate;
+7. Docker build;
+8. PAPER smoke;
+9. evidence summary.
 
-**Ação humana:** revisar e aprovar/mergear a PR #67 somente após o CI voltar a executar e ficar verde. Não ampliar o provider existente `ai-holding-main`.
+`cloudbuild.deploy.yaml` é o deploy:
 
-### H2 — Fornecer uma fonte de market data autorizada para automação
+1. full release gate;
+2. Terraform validate;
+3. build/push image;
+4. resolve immutable digest;
+5. Terraform plan;
+6. reject any delete;
+7. Terraform apply;
+8. verify private Cloud Run Job;
+9. verify scheduler;
+10. acceptance cycle #1;
+11. acceptance cycle #2;
+12. require both Completed=True;
+13. persist release evidence in GCS.
 
-O runtime deliberadamente não raspa páginas B3 nem adivinha endpoint. O segredo esperado é:
+## Custo
 
-`mf-authorized-price-report-url`
+A implementação foi desenhada para permanecer dentro das faixas gratuitas enquanto o volume for baixo:
 
-Ele deve apontar para um acesso autorizado/licenciado compatível com `BVBG.086.01` ou `BVBG.186.01`, ou o adapter deverá ser trocado por outro distribuidor autorizado antes do deploy.
+- Cloud Build: usar somente builds necessários, sem GitHub Actions;
+- Cloud Run Job: 1 vCPU / 512 MiB, execução curta;
+- Cloud Scheduler: um job;
+- BRAPI sandbox: sem chave/custo para o piloto;
+- BigQuery/GCS: volume pequeno e governado.
 
-**Ação humana:** contratar/habilitar ou indicar um acesso autorizado de market data. Não colar token/segredo em GitHub, chat, issue ou arquivo.
+Não há contratação de ANBIMA Feed, market-data B3 pago ou broker feed nesta release.
 
-## Sequência após os blockers
+## Bloqueio externo atual
 
-1. CI da Holding #67 verde;
-2. aprovação/merge da Holding #67;
-3. CI do Mercado Financeiro verde no head final;
-4. merge do PR #20 em `main`;
-5. criar/adicionar versão do segredo `mf-authorized-price-report-url`;
-6. disparar manualmente `deploy-paper-shadow`;
-7. workflow constrói imagem, resolve digest, valida segredo, planeja Terraform e rejeita qualquer delete;
-8. aplica infraestrutura;
-9. confirma job privado;
-10. executa acceptance #1;
-11. executa acceptance #2 sem edição;
-12. exige duas execuções concluídas;
-13. preserva evidências no RAW;
-14. somente então marcar PAPER/SHADOW como GO-LIVE.
+O código não possui acesso direto ao projeto Google Cloud nesta conversa. Para executar o primeiro deploy real, o projeto `ai-holding-prod-bc` precisa:
 
-## Regra LIVE
+1. conectar o repositório `brunocapellari-dotcom/Mercado-Financeiro` ao Cloud Build;
+2. permitir que o service account `github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com` execute a infraestrutura do Mercado Financeiro.
 
-Nenhuma parte deste release gate autoriza negociação com dinheiro real. LIVE exige aprovação humana separada, credenciais segregadas, risk/reconciliation/kill-switch live e gates adicionais.
+Papéis que não aparecem comprovados na fundação atual e precisam ser verificados/concedidos:
+
+- BigQuery Admin;
+- Storage Admin;
+- Logs Writer.
+
+Os papéis de Artifact Registry, Cloud Run, Cloud Scheduler, Service Usage e IAM Service Account Admin já constam na fundação da Holding.
+
+## Critério de GO-LIVE PAPER/SHADOW
+
+Somente marcar GO-LIVE depois de:
+
+- Google Cloud Build do head final verde;
+- deploy por digest imutável;
+- Terraform sem deletes;
+- Cloud Run Job privado;
+- Cloud Scheduler ativo;
+- acceptance #1 verde;
+- acceptance #2 verde sem edição intermediária;
+- evidências presentes no GCS;
+- LIVE ainda bloqueado.
+
+## LIVE
+
+Nenhuma parte desta release autoriza capital real. LIVE exige decisão humana separada, feed adequado, broker adapter, reconciliação independente, kill switch live, credenciais segregadas e novo gate de segurança.
