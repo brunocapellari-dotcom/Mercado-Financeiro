@@ -69,8 +69,8 @@ def test_paper_market_cycle_skips_stale_delayed_quote_without_failing_job():
     module = _load_operational_module()
     result = module._paper_market_cycle(_market_preflight(quote_age_seconds=7200.0))
     assert result == {
-        "ok": True,
-        "state": "skipped",
+        "ok": False,
+        "state": "blocked",
         "reason": "delayed_quote_too_old_for_paper",
         "quote_age_seconds": "7200.0",
         "max_quote_age_seconds": "2400.0",
