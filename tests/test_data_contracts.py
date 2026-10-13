@@ -32,6 +32,10 @@ def test_source_registry_marks_official_and_credentialed_sources():
     assert get_source_contract("BCB").canonical
     assert get_source_contract("CVM").canonical
     assert get_source_contract("ANBIMA").credentials_required
+    brapi = get_source_contract("BRAPI")
+    assert not brapi.canonical
+    assert not brapi.live_capable
+    assert not brapi.credentials_required
     assert not get_source_contract("DATABENTO").canonical
     with pytest.raises(KeyError):
         get_source_contract("unknown")
