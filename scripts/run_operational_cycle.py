@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from mercado_financeiro.data import BrapiMarketDataProvider
 from mercado_financeiro.execution import BrokerageCostSchedule, MarketExecutionState
@@ -177,7 +178,7 @@ def _paper_market_cycle(preflight: dict[str, Any]) -> dict[str, Any]:
             "max_quote_age_seconds": str(max_age),
         }
 
-    local = now.astimezone(__import__("zoneinfo").ZoneInfo("America/Sao_Paulo"))
+    local = now.astimezone(ZoneInfo("America/Sao_Paulo"))
     if local.weekday() >= 5 or not (time(10, 0) <= local.time().replace(tzinfo=None) <= time(18, 0)):
         return {
             "ok": True,
