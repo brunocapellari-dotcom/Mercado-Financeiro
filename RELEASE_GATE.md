@@ -1,60 +1,57 @@
-# Mercado Financeiro — Operational Release Gate
+# Mercado Financeiro — Release Gate
 
-Data da auditoria: 2026-10-13  
-Branch: `architecture/segregated-market-stack`  
-Escopo: PAPER/SHADOW. LIVE com dinheiro real permanece explicitamente fora deste gate.
+Data: 2026-10-13
 
 Regra: **DONE = código + teste executado + evidência + commit**.
 
-## Evidência-base verde
+GitHub é a fonte de código. **Google Cloud Build é o executor canônico. GitHub Actions não é usado.**
 
-O commit `024ded70b2d28921ba36de1feb9d4bb144edc0c2` concluiu com sucesso, no mesmo estado de código:
+## Baseline verde comprovado
 
-- full-project-gate;
+Commit `024ded70b2d28921ba36de1feb9d4bb144edc0c2` passou integralmente no executor anteriormente disponível:
+
+- Python 3.11 / 3.12;
 - CodeQL;
-- deterministic Python 3.11 e 3.12;
-- B3/CVM historical identity;
-- FRE share history;
-- B3 company events;
-- source diagnostics;
-- CVM PIT;
+- dependency/security gates;
+- B3/CVM identity;
+- FRE;
 - BVBG;
-- macro/BCB.
+- CVM PIT;
+- BCB/macro;
+- B3 corporate events;
+- source diagnostics.
 
-## Matriz de release
+## Estado atual
 
-| Componente | Estado | Evidência / bloqueio |
+| Componente | Estado | Evidência / condição |
 |---|---|---|
-| Segurança estática e dependências | DONE no baseline verde | CodeQL + gate determinístico passaram no commit `024ded70`. |
-| Testes Python 3.11/3.12 | DONE no baseline verde | Gate completo passou nas duas versões. |
-| B3 COTAHIST / identidade histórica | DONE no gate atual | Auditoria oficial 2011–2026 verde no baseline. |
-| B3 BVBG | DONE no gate atual | Integração oficial verde. |
-| CVM PIT | DONE no gate atual | Gate oficial verde. |
-| FRE / shares | DONE no gate atual | Vintages inconsistentes são excluídos por filing, fail-closed e contabilizados. |
-| BCB / macro | DONE no gate atual | SGS/Olinda/Focus auditados pelo gate. |
-| Eventos corporativos B3 | DONE no gate atual | Integração oficial verde. |
-| Point-in-Time / anti-lookahead | DONE no core | Contratos, as-of e invariantes cobertos por testes. |
-| Risk Manager determinístico | DONE no core | Veto pré-trade, limites e kill-switch boundaries testados. |
-| Broker simulado / ledger | DONE no core | PAPER/BACKTEST usam o mesmo caminho determinístico sem broker real. |
-| Runtime PAPER/SHADOW | READY / TESTING | Operational cycle e imagem non-root adicionados após baseline verde; novo CI não conseguiu iniciar runners. |
-| Runtime LIVE | BLOCKED BY DESIGN | Sem deploy, identidade ou segredo de broker nesta release. |
-| Cloud data layers | READY / TESTING | `raw -> normalized -> canonical -> derived -> analytics`; research isolado. |
-| Evidência operacional | READY / TESTING | Upload append-only para o bucket RAW versionado; aguarda execução cloud. |
-| Terraform | READY / TESTING | GCP compartilhado `ai-holding-prod-bc`; validação entrou no gate, mas runner não iniciou. |
-| Container | READY / TESTING | Base por digest, usuário non-root; build entrou no gate, mas runner não iniciou. |
-| WIF deploy | HUMAN BLOCKER | Holding PR #67 cria provider dedicado `mf-deploy-main`; não aplicar sem aprovação humana. |
-| Market data atual autorizado | HUMAN BLOCKER | Necessário acesso/licença/distribuidor autorizado; scraping B3 não é aceito. |
-| E2E cloud #1 e #2 | BLOCKED | Depende de WIF aprovado + segredo market data + CI executável. |
-| Scheduler recorrente | PÓS-DEPLOY IMEDIATO | Deve reutilizar a identidade bounded da Holding; não criar segundo orquestrador. |
-| GO-LIVE PAPER/SHADOW | NOT YET | Exige dois E2E consecutivos e evidência persistida. |
+| Core PIT / anti-lookahead | DONE | Testes e baseline verde. |
+| Risk Manager | DONE core | Fail-closed pré-trade e limites determinísticos. |
+| Simulated execution/accounting | DONE core | Mesmo path para backtest/PAPER, sem broker real. |
+| Historical official sources | DONE baseline | B3/CVM/BCB/NEFIN gates verdes no baseline. |
+| BRAPI adapter | READY FOR GOOGLE VALIDATION | Adapter v2, retry, allowlist, provenance e testes adicionados. |
+| Zero-cost market data | READY FOR GOOGLE VALIDATION | Sandbox PETR4/VALE3/MGLU3/ITUB4; delayed only. |
+| PAPER market cycle | READY FOR GOOGLE VALIDATION | Stale/out-of-window = skip; no fake execution. |
+| Docker runtime | READY FOR GOOGLE VALIDATION | Non-root; cloud extras incluídos. |
+| BigQuery layers | READY FOR GOOGLE VALIDATION | raw/normalized/canonical/derived/analytics/research. |
+| Cloud Run Job | READY FOR DEPLOY | Private `mf-paper-shadow`; no LIVE credentials. |
+| Cloud Scheduler | READY FOR DEPLOY | 30-min market-hour cadence. |
+| Immutable evidence | READY FOR DEPLOY | GCS append-only object create. |
+| Google Cloud Build gate | READY | `cloudbuild.yaml`. |
+| Google deploy pipeline | READY | `cloudbuild.deploy.yaml`; destructive plans blocked. |
+| E2E #1/#2 | BLOCKED EXTERNALLY | Requires first Google Cloud Build/deploy execution. |
+| LIVE money | BLOCKED BY DESIGN | Explicitly outside this release. |
 
-## Outage do executor
+## Human/GCP dependency
 
-Após o baseline verde, novos workflows de Mercado Financeiro e AI-Holding passaram a concluir com falha sem executar qualquer step, inclusive CodeQL. Essa condição não pode ser usada como evidência de aprovação nem como evidência de regressão. O gate permanece fail-closed até o runner executar novamente.
+Before the first real Google deployment:
 
-## Dependências humanas
+1. Cloud Build must be connected to the Mercado-Financeiro GitHub repository.
+2. Verify/grant to `github-deployer@ai-holding-prod-bc.iam.gserviceaccount.com`:
+   - `roles/bigquery.admin`;
+   - `roles/storage.admin`;
+   - `roles/logging.logWriter`.
 
-1. Revisar e aprovar a mudança de trust boundary na AI-Holding PR #67 quando o CI voltar a funcionar.
-2. Disponibilizar acesso autorizado de market data atual e criar a versão do segredo `mf-authorized-price-report-url` sem expor o valor em Git/chat/log.
+Do not create a JSON service-account key. Do not restore GitHub Actions/WIF for this project.
 
-Detalhamento e sequência operacional: `GO_LIVE_STATUS.md`.
+After those permissions exist, run `cloudbuild.deploy.yaml`. The pipeline itself performs plan/apply, IAM checks, two acceptance executions and evidence persistence.
