@@ -19,6 +19,7 @@ output "paper_shadow_job" {
   value = var.deploy_paper_shadow ? google_cloud_run_v2_job.paper_shadow[0].name : null
 }
 
-output "market_data_secret_id" {
-  value = google_secret_manager_secret.authorized_price_report_url.secret_id
+
+output "paper_shadow_scheduler" {
+  value = var.deploy_paper_shadow ? google_cloud_scheduler_job.paper_shadow[0].name : null
 }
