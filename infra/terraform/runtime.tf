@@ -52,7 +52,7 @@ resource "google_cloud_run_v2_job" "paper_shadow" {
         image = var.runtime_image_ref
         args = [
           "--mode",
-          "full",
+          "paper",
           "--output",
           "/tmp/mercado-financeiro-operational-evidence.json",
         ]
