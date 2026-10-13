@@ -40,6 +40,9 @@ benchmark = [
     "vectorbt>=1.1.1,<1.2",
     "skfolio>=1.4.9,<1.5",
 ]
+cloud = [
+    "google-cloud-storage>=3.4,<4",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
