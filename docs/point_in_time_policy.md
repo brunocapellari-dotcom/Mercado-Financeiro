@@ -35,6 +35,22 @@ Ticker is not an identity. The canonical entity layer must retain stable issuer/
 
 Market cap must use point-in-time shares outstanding by class and a compatible market price on the same information set. Future capital structure revisions are prohibited.
 
+## B3 COTAHIST daily bars
+
+COTAHIST files are final end-of-day records collected after the fact. For replay:
+
+1. `reference_date` = session close (18:00 America/Sao_Paulo) of `trade_date`;
+2. `available_from` = next calendar day 08:00 America/Sao_Paulo — an *inferred*, conservative
+   publication time (`availability_rule = inferido:trade_date+1d_08:00_local`), before the next open;
+3. rows whose `available_from` is later than the file retrieval time are rejected;
+4. paper/shadow decisions use `asof(bars, cutoff)` and execute strictly after the cutoff at the
+   next session's opening price; the execution bar is never a decision input;
+5. bars are unadjusted for corporate actions; implausible daily moves exclude the candidate and are
+   reported, never silently repaired.
+
+Implementation: `mercado_financeiro.operations.historical_replay`, runner
+`scripts/run_historical_paper_replay.py` (raw files only in an external `MF_DATA_DIR`).
+
 ## Universe construction
 
 The investable universe is reconstructed for each historical date and must retain securities that later delisted, merged, failed or became illiquid. Residual unmapped observations require explicit classification; silent dropping is prohibited.
