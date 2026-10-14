@@ -121,3 +121,33 @@ def test_paper_session_fail_closed_on_risk_rejection() -> None:
 def test_paper_session_refuses_live_mode() -> None:
     with pytest.raises(ValueError, match="PAPER or SHADOW"):
         _session(RuntimeMode.LIVE)
+
+
+class _PartialFillBrokerage(DeterministicBrokerageModel):
+    """Simulated broker that fills only part of the order (no live boundary)."""
+
+    def simulate_market_order(self, order, market, *, cash_available):  # type: ignore[override]
+        from dataclasses import replace as _replace
+
+        full = super().simulate_market_order(order, market, cash_available=cash_available)
+        return _replace(full, quantity=order.quantity / 2)
+
+
+def test_paper_session_books_only_the_filled_quantity() -> None:
+    session = PaperShadowSession(
+        mode=RuntimeMode.PAPER,
+        risk_engine=_risk(),
+        brokerage=_PartialFillBrokerage(
+            BrokerageCostSchedule(
+                fee_bps=Decimal("1"),
+                base_slippage_bps=Decimal("2"),
+                settlement_business_days=0,
+            )
+        ),
+        initial_cash=Decimal("100000"),
+    )
+    row = session.process_order(_order(), risk_context=_context(), market=_market())
+    assert row.status == "filled"
+    assert row.quantity == Decimal("50")
+    snapshot = session.snapshot(marks={"PETR4": Decimal("31")})
+    assert snapshot.positions["PETR4"] == Decimal("50")

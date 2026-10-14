@@ -169,9 +169,11 @@ class PaperShadowSession:
         )
 
     def _apply_fill(self, order: OrderIntent, fill: SimulatedFill) -> PaperOrderRecord:
-        assert fill.fill_price is not None
+        if fill.fill_price is None or fill.quantity <= 0 or fill.quantity > order.quantity:
+            raise ValueError("simulated fill is inconsistent with the paper order")
         before = self._ledger.snapshot().realized_pnl
-        signed_quantity = order.quantity if order.side == "buy" else -order.quantity
+        # The ledger must reflect the quantity actually filled, never the requested one.
+        signed_quantity = fill.quantity if order.side == "buy" else -fill.quantity
         fill_id = "paper-" + sha256(
             f"{order.idempotency_key}|{fill.fill_price}|{fill.quantity}".encode("utf-8")
         ).hexdigest()[:24]
